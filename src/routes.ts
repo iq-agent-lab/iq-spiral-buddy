@@ -34,7 +34,10 @@ import {
   parseCuratedId,
   type CuratedRepoInfo,
 } from "./curated.js";
-import { groupReposByCategory } from "./categories.js";
+import {
+  groupReposByCategory,
+  categorizeLocalRoadmap,
+} from "./categories.js";
 
 export function createApi(config: Config) {
   const app = new Hono();
@@ -146,33 +149,47 @@ export function createApi(config: Config) {
     const notes = config.vaultPath ? await listSpiralNotes(config.vaultPath) : [];
 
     return c.json(
-      roadmaps.map((r) => {
-        const roadmapNotes = notes.filter((n) =>
-          noteBelongsToRoadmap(n, { roadmapId: r.id, roadmapName: r.name }),
-        );
-        const visitedChapters = new Set(
-          roadmapNotes.map((n) => n.chapterId).filter(Boolean),
-        );
-        const maxDepth = roadmapNotes.reduce(
-          (m, n) => Math.max(m, n.depth),
-          0,
-        );
-        const lastDate = roadmapNotes.reduce(
-          (latest: string | null, n) =>
-            !latest || n.date > latest ? n.date : latest,
-          null,
-        );
-        return {
-          id: r.id,
-          name: r.name,
-          source: r.source ?? "local",
-          chapterCount: r.chapterCount,
-          visitedChapters: visitedChapters.size,
-          totalNotes: roadmapNotes.length,
-          maxDepth,
-          lastDate,
-        };
-      }),
+      await Promise.all(
+        roadmaps.map(async (r) => {
+          const roadmapNotes = notes.filter((n) =>
+            noteBelongsToRoadmap(n, { roadmapId: r.id, roadmapName: r.name }),
+          );
+          const visitedChapters = new Set(
+            roadmapNotes.map((n) => n.chapterId).filter(Boolean),
+          );
+          const maxDepth = roadmapNotes.reduce(
+            (m, n) => Math.max(m, n.depth),
+            0,
+          );
+          const lastDate = roadmapNotes.reduce(
+            (latest: string | null, n) =>
+              !latest || n.date > latest ? n.date : latest,
+            null,
+          );
+          // Local 로드맵은 path 기반 분류
+          const category =
+            r.source === "local"
+              ? await categorizeLocalRoadmap(config.curatedOrg, r.id)
+              : null;
+          return {
+            id: r.id,
+            name: r.name,
+            source: r.source ?? "local",
+            chapterCount: r.chapterCount,
+            visitedChapters: visitedChapters.size,
+            totalNotes: roadmapNotes.length,
+            maxDepth,
+            lastDate,
+            category: category
+              ? {
+                  name: category.name,
+                  emoji: category.emoji,
+                  color: category.color,
+                }
+              : null,
+          };
+        }),
+      ),
     );
   });
 

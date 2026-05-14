@@ -104,3 +104,110 @@ export async function groupReposByCategory<T extends { name: string }>(
 
   return groups;
 }
+
+/**
+ * 카테고리 이름 정규화 (매칭용).
+ * "API & Communication" / "api & communication " / "api-communication" 다 같은 키로.
+ */
+function normalizeCategoryName(s: string): string {
+  return s.toLowerCase().replace(/[\s&\-_]+/g, "").trim();
+}
+
+/**
+ * Local 로드맵의 path에서 카테고리 추출.
+ * 사용자의 폴더가 카테고리 단위로 정리되어 있다면 (예: iq-dev-lab),
+ * roadmap_id의 첫 segment가 카테고리.
+ *
+ * org가 주어지면 그 조직 카테고리 정의와 매핑 시도 → emoji/color 활용.
+ * 매핑 안 되면 첫 segment 이름 그대로, 1-level path면 "Uncategorized".
+ */
+export async function categorizeLocalRoadmap(
+  org: string | null,
+  roadmapId: string,
+): Promise<CategoryDef> {
+  const segments = roadmapId.split("/").map((s) => s.trim()).filter(Boolean);
+
+  if (segments.length < 2) {
+    return {
+      name: "Uncategorized",
+      emoji: "📁",
+      color: "#888888",
+      repos: [],
+    };
+  }
+
+  const firstSeg = segments[0]!;
+
+  // 정의된 카테고리와 정규화 매칭 시도
+  const defs = org ? await getOrgCategories(org) : null;
+  if (defs) {
+    const normalized = normalizeCategoryName(firstSeg);
+    const match = defs.find(
+      (c) => normalizeCategoryName(c.name) === normalized,
+    );
+    if (match) return match;
+  }
+
+  // fallback: 첫 segment 그대로 사용
+  return {
+    name: firstSeg,
+    emoji: "📁",
+    color: "#888888",
+    repos: [],
+  };
+}
+
+/**
+ * Local 로드맵들을 카테고리별로 그룹화. 카테고리 정의 순서 우선,
+ * 정의 없으면 alphabetical, "Uncategorized"는 마지막.
+ */
+export async function groupLocalRoadmapsByCategory<
+  T extends { id: string; name: string },
+>(
+  org: string | null,
+  roadmaps: T[],
+): Promise<Array<{ category: CategoryDef; roadmaps: T[] }>> {
+  const buckets = new Map<
+    string,
+    { category: CategoryDef; roadmaps: T[] }
+  >();
+
+  for (const r of roadmaps) {
+    const cat = await categorizeLocalRoadmap(org, r.id);
+    const existing = buckets.get(cat.name);
+    if (existing) {
+      existing.roadmaps.push(r);
+    } else {
+      buckets.set(cat.name, { category: cat, roadmaps: [r] });
+    }
+  }
+
+  // 카테고리 정의 순서대로 정렬, 정의 없는 건 뒤로, Uncategorized는 맨 뒤
+  const defs = org ? await getOrgCategories(org) : null;
+  const order = new Map<string, number>();
+  if (defs) {
+    defs.forEach((c, i) => order.set(c.name, i));
+  }
+
+  const result = Array.from(buckets.values());
+  result.sort((a, b) => {
+    const aIsUncat = a.category.name === "Uncategorized";
+    const bIsUncat = b.category.name === "Uncategorized";
+    if (aIsUncat && !bIsUncat) return 1;
+    if (!aIsUncat && bIsUncat) return -1;
+
+    const ia = order.get(a.category.name);
+    const ib = order.get(b.category.name);
+    if (ia !== undefined && ib !== undefined) return ia - ib;
+    if (ia !== undefined) return -1;
+    if (ib !== undefined) return 1;
+    return a.category.name.localeCompare(b.category.name);
+  });
+
+  // 각 그룹 내부 로드맵은 alphabetical
+  for (const g of result) {
+    g.roadmaps.sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  return result;
+}

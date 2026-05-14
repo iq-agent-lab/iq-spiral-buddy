@@ -28,8 +28,9 @@ const state = {
   config: null,
   roadmaps: [],
   curatedAvailable: [],
-  curatedGroups: [], // [{name, emoji, color, repos: [...]}]
-  expandedCategories: new Set(), // 펼쳐진 카테고리 이름들
+  curatedGroups: [],
+  expandedCategories: new Set(), // Curated 받기 가능 카테고리
+  expandedLocalCategories: new Set(), // Local 카테고리 (active 로드맵의 카테고리는 자동 펼침)
   showAvailable: false,
   curatedOrg: null,
   activeRoadmapId: null,
@@ -262,8 +263,47 @@ function renderRoadmapSelector() {
   const parts = [];
 
   if (local.length > 0) {
-    parts.push(`<div class="roadmap-group-title">📁 Local (${local.length})</div>`);
-    parts.push(local.map(roadmapItemHtml).join(""));
+    // 카테고리별로 그룹화
+    const byCategory = new Map();
+    for (const r of local) {
+      const catName = r.category?.name ?? "Uncategorized";
+      if (!byCategory.has(catName)) {
+        byCategory.set(catName, {
+          category: r.category ?? { name: "Uncategorized", emoji: "📁", color: "#888888" },
+          roadmaps: [],
+        });
+      }
+      byCategory.get(catName).roadmaps.push(r);
+    }
+
+    // active 로드맵의 카테고리는 자동 펼침
+    const activeRoadmap = local.find((r) => r.id === state.activeRoadmapId);
+    if (activeRoadmap?.category?.name) {
+      state.expandedLocalCategories.add(activeRoadmap.category.name);
+    }
+
+    parts.push(
+      `<div class="roadmap-group-title">📁 Local (${local.length}) · ${byCategory.size} categories</div>`,
+    );
+
+    for (const [catName, group] of byCategory) {
+      const isExpanded = state.expandedLocalCategories.has(catName);
+      const caret = isExpanded ? "▼" : "▶";
+      const itemsHtml = isExpanded
+        ? group.roadmaps.map(roadmapItemHtml).join("")
+        : "";
+      parts.push(`
+        <div class="curated-category local-category">
+          <button class="category-header" data-local-cat="${escapeAttr(catName)}" style="--cat-color: ${escapeAttr(group.category.color)}">
+            <span class="cat-caret">${caret}</span>
+            <span class="cat-emoji">${escapeHtml(group.category.emoji)}</span>
+            <span class="cat-name">${escapeHtml(catName)}</span>
+            <span class="cat-count">${group.roadmaps.length}</span>
+          </button>
+          <div class="category-body ${isExpanded ? "" : "hidden"}">${itemsHtml}</div>
+        </div>
+      `);
+    }
   }
 
   if (curated.length > 0) {
@@ -407,8 +447,8 @@ function renderRoadmapSelector() {
     });
   });
 
-  // wire category headers (collapsible)
-  els.roadmapList.querySelectorAll(".category-header").forEach((btn) => {
+  // wire category headers (Curated 받기 가능)
+  els.roadmapList.querySelectorAll(".category-header[data-cat]").forEach((btn) => {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
       const catName = btn.dataset.cat;
@@ -416,6 +456,20 @@ function renderRoadmapSelector() {
         state.expandedCategories.delete(catName);
       } else {
         state.expandedCategories.add(catName);
+      }
+      renderRoadmapSelector();
+    });
+  });
+
+  // wire local category headers
+  els.roadmapList.querySelectorAll(".category-header[data-local-cat]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const catName = btn.dataset.localCat;
+      if (state.expandedLocalCategories.has(catName)) {
+        state.expandedLocalCategories.delete(catName);
+      } else {
+        state.expandedLocalCategories.add(catName);
       }
       renderRoadmapSelector();
     });
