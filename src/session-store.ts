@@ -29,6 +29,8 @@ export interface ActiveSession {
   startedAt: number;
   totalInputTokens: number;
   totalOutputTokens: number;
+  /** 이번 세션에서 사용할 모델 id. 없으면 config.model 사용. */
+  model?: string;
 }
 
 const sessions = new Map<string, ActiveSession>();
@@ -37,6 +39,7 @@ export function createSession(args: {
   chapter: Chapter;
   depth: number;
   related: SpiralNote[];
+  model?: string;
 }): ActiveSession {
   const session: ActiveSession = {
     id: randomUUID(),
@@ -47,6 +50,7 @@ export function createSession(args: {
     startedAt: Date.now(),
     totalInputTokens: 0,
     totalOutputTokens: 0,
+    model: args.model,
   };
   sessions.set(session.id, session);
   return session;

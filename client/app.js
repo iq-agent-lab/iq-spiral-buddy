@@ -26,6 +26,8 @@ marked.setOptions({ breaks: true, gfm: true });
 
 const state = {
   config: null,
+  models: [], // 사용 가능한 모델 목록
+  selectedModel: null, // 현재 선택된 모델 id (localStorage 복원)
   roadmaps: [],
   curatedAvailable: [],
   curatedGroups: [],
@@ -59,6 +61,8 @@ const els = {};
 
 function cacheEls() {
   els.meta = $("meta");
+  els.modelSelect = $("model-select");
+  els.modelTierBadge = $("model-tier-badge");
   els.roadmapCurrent = $("roadmap-current");
   els.roadmapList = $("roadmap-list");
   els.suggestion = $("suggestion-box");
@@ -108,6 +112,20 @@ function wireEvents() {
       );
     }
   });
+
+  // 모델 셀렉터 — 세션 중에는 비활성화
+  els.modelSelect.addEventListener("change", (e) => {
+    const modelId = e.target.value;
+    if (!modelId) return;
+    state.selectedModel = modelId;
+    localStorage.setItem("spiral-buddy:model", modelId);
+    updateModelTierBadge();
+    if (state.session) {
+      setStatus(
+        "ℹ️ 모델 변경은 다음 세션부터 적용돼요 (현재 세션은 그대로 진행)",
+      );
+    }
+  });
   els.roadmapCurrent.addEventListener("click", () => {
     els.roadmapList.classList.toggle("hidden");
   });
@@ -134,15 +152,25 @@ function wireEvents() {
 
 async function loadInitial() {
   try {
-    const [config, roadmaps] = await Promise.all([
+    const [config, roadmaps, modelsData] = await Promise.all([
       fetch("/api/config").then((r) => r.json()),
       fetch("/api/roadmaps")
         .then((r) => r.json())
         .catch(() => []),
+      fetch("/api/models").then((r) => r.json()).catch(() => null),
     ]);
     state.config = config;
     state.curatedOrg = config?.curatedOrg ?? null;
     state.roadmaps = Array.isArray(roadmaps) ? roadmaps : [];
+
+    // 모델 목록 + 선택 상태
+    state.models = modelsData?.models ?? [];
+    const savedModel = localStorage.getItem("spiral-buddy:model");
+    const defaultModel = modelsData?.default ?? config?.model ?? null;
+    state.selectedModel =
+      (savedModel && state.models.find((m) => m.id === savedModel)?.id) ||
+      defaultModel;
+    renderModelSelector();
 
     renderMeta();
 
@@ -242,7 +270,40 @@ async function loadRoadmapData() {
 
 function renderMeta() {
   const c = state.config;
-  els.meta.textContent = c?.model ?? "";
+  if (els.meta) els.meta.textContent = c?.model ?? "";
+}
+
+function renderModelSelector() {
+  if (!els.modelSelect) return;
+  if (state.models.length === 0) {
+    els.modelSelect.innerHTML = `<option>모델 로드 실패</option>`;
+    els.modelSelect.disabled = true;
+    return;
+  }
+  els.modelSelect.innerHTML = state.models
+    .map(
+      (m) =>
+        `<option value="${escapeAttr(m.id)}" ${
+          m.id === state.selectedModel ? "selected" : ""
+        }>${escapeHtml(m.label)}</option>`,
+    )
+    .join("");
+  els.modelSelect.disabled = false;
+  updateModelTierBadge();
+}
+
+function updateModelTierBadge() {
+  if (!els.modelTierBadge) return;
+  const model = state.models.find((m) => m.id === state.selectedModel);
+  if (!model) {
+    els.modelTierBadge.textContent = "";
+    els.modelTierBadge.className = "model-tier-badge";
+    els.modelTierBadge.title = "";
+    return;
+  }
+  els.modelTierBadge.textContent = model.tier;
+  els.modelTierBadge.className = `model-tier-badge tier-${model.tier}`;
+  els.modelTierBadge.title = model.description ?? "";
 }
 
 function renderRoadmapSelector() {
@@ -716,25 +777,57 @@ async function handleSessionInterruption() {
   if (action === "cancel") return "cancel";
 
   if (action === "save") {
-    // 저장 — 노트 생성 후 세션 종료
+    // 저장 — 진행 카드 표시 (endSession과 동일 흐름)
     setPending(true);
-    setStatus("📝 현재 세션 저장 중…");
+    const card = createEndProgressCard();
+    els.messages.appendChild(card);
+    scrollToBottom();
+
     try {
       const res = await fetch(`/api/session/${state.session.id}/end`, {
         method: "POST",
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const result = await res.json();
-      showCompletionCard(result);
-      // 전체 로드맵 진도도 갱신 (다른 카테고리로 이동 후에도 정확하게)
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let result = null;
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let idx;
+        while ((idx = buffer.indexOf("\n\n")) !== -1) {
+          const rawMsg = buffer.slice(0, idx);
+          buffer = buffer.slice(idx + 2);
+          const parsed = parseSseMessage(rawMsg);
+          if (!parsed) continue;
+          if (parsed.event === "stage") {
+            updateEndProgressCard(card, parsed.data);
+          } else if (parsed.event === "done") {
+            result = parsed.data;
+            finalizeEndProgressCard(card, parsed.data);
+          } else if (parsed.event === "error") {
+            throw new Error(parsed.data.message ?? "unknown");
+          }
+        }
+      }
+
+      if (!result) throw new Error("저장 완료 신호를 받지 못함");
+
       const roadmaps = await fetch("/api/roadmaps").then((r) => r.json());
       state.roadmaps = Array.isArray(roadmaps) ? roadmaps : [];
-      setStatus("✓ 저장 완료", "success");
+      setStatus("✓ 저장 완료 — 이동합니다", "success");
       setTimeout(() => setStatus(""), 2500);
     } catch (err) {
+      card.classList.add("error");
+      const titleEl = card.querySelector(".end-progress-card-title");
+      if (titleEl)
+        titleEl.innerHTML = `<span style="color:#f85149">❌ 저장 실패</span>`;
       setStatus(`저장 실패: ${err.message}`, "error");
       setPending(false);
-      // 저장 실패 시 사용자에게 강제 폐기 여부 다시 물어보지 않음 — 안전하게 cancel
       return "cancel";
     }
     setPending(false);
@@ -914,6 +1007,7 @@ async function startSession(chapterId) {
       body: JSON.stringify({
         chapterId,
         roadmapId: state.activeRoadmapId,
+        model: state.selectedModel ?? undefined,
       }),
     });
 
@@ -988,7 +1082,11 @@ async function endSession() {
   if (!confirm("세션 종료하고 옵시디언에 노트 생성할까?")) return;
 
   setPending(true);
-  setStatus("📝 Generating note…");
+
+  // 진행 카드 생성 (메시지 영역에 inline으로)
+  const card = createEndProgressCard();
+  els.messages.appendChild(card);
+  scrollToBottom();
 
   try {
     const res = await fetch(`/api/session/${state.session.id}/end`, {
@@ -998,26 +1096,167 @@ async function endSession() {
       const text = await res.text();
       throw new Error(text);
     }
-    const result = await res.json();
-    showCompletionCard(result);
+
+    // SSE 파싱 - reader로 직접 청크 읽기 (EventSource는 GET 전용이라 못 씀)
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let result = null;
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      // SSE 메시지 단위 (빈 줄로 구분)
+      let idx;
+      while ((idx = buffer.indexOf("\n\n")) !== -1) {
+        const rawMsg = buffer.slice(0, idx);
+        buffer = buffer.slice(idx + 2);
+        const parsed = parseSseMessage(rawMsg);
+        if (!parsed) continue;
+        if (parsed.event === "stage") {
+          updateEndProgressCard(card, parsed.data);
+        } else if (parsed.event === "done") {
+          result = parsed.data;
+          finalizeEndProgressCard(card, parsed.data);
+        } else if (parsed.event === "error") {
+          throw new Error(parsed.data.message ?? "unknown");
+        }
+      }
+    }
+
+    if (!result) throw new Error("저장 완료 신호를 받지 못함");
 
     state.session = null;
+    state.messages = [];
     enableSessionUi(false);
     updateTopbar();
 
-    // 현재 로드맵 데이터 전체 새로고침 + 전체 로드맵 진도도 갱신
-    const [roadmaps] = await Promise.all([
-      fetch("/api/roadmaps").then((r) => r.json()),
-    ]);
+    // 진도 갱신
+    const roadmaps = await fetch("/api/roadmaps").then((r) => r.json());
     state.roadmaps = Array.isArray(roadmaps) ? roadmaps : [];
     renderRoadmapSelector();
     await loadRoadmapData();
     setStatus("");
   } catch (err) {
+    card.classList.add("error");
+    const titleEl = card.querySelector(".end-progress-card-title");
+    if (titleEl) titleEl.innerHTML = `<span style="color:#f85149">❌ 저장 실패</span>`;
     setStatus(`End failed: ${err.message}`, "error");
   } finally {
     setPending(false);
   }
+}
+
+function parseSseMessage(raw) {
+  const lines = raw.split("\n");
+  let event = "message";
+  let data = "";
+  for (const line of lines) {
+    if (line.startsWith("event:")) event = line.slice(6).trim();
+    else if (line.startsWith("data:")) data += line.slice(5).trim();
+  }
+  if (!data) return null;
+  try {
+    return { event, data: JSON.parse(data) };
+  } catch {
+    return null;
+  }
+}
+
+const END_STAGES = [
+  { stage: "analyzing", label: "대화 분석 & 구조화", detail: "8섹션 노트 생성" },
+  { stage: "writing", label: "노트 파일 작성", detail: "frontmatter + 본문" },
+  { stage: "saving", label: "Obsidian vault에 저장", detail: "디스크 기록" },
+];
+
+function createEndProgressCard() {
+  const div = document.createElement("div");
+  div.className = "end-progress-card";
+  div.innerHTML = `
+    <div class="end-progress-card-title">
+      <span class="spin-indicator"></span>
+      <span class="title-text">세션 마무리 & Obsidian 저장</span>
+    </div>
+    <div class="end-progress-steps">
+      ${END_STAGES.map(
+        (s) => `
+        <div class="end-progress-step" data-stage="${s.stage}">
+          <div class="step-marker">${END_STAGES.indexOf(s) + 1}</div>
+          <div class="step-content">
+            <div class="step-label">${escapeHtml(s.label)}</div>
+            <div class="step-detail">${escapeHtml(s.detail)}</div>
+          </div>
+        </div>
+      `,
+      ).join("")}
+    </div>
+  `;
+  return div;
+}
+
+function updateEndProgressCard(card, data) {
+  // 현재 stage를 active로, 이전 stage들은 done으로
+  const steps = card.querySelectorAll(".end-progress-step");
+  const currentIdx = END_STAGES.findIndex((s) => s.stage === data.stage);
+  steps.forEach((step, i) => {
+    step.classList.remove("active", "done");
+    if (i < currentIdx) {
+      step.classList.add("done");
+      step.querySelector(".step-marker").innerHTML = "✓";
+    } else if (i === currentIdx) {
+      step.classList.add("active");
+      // detail 업데이트 (서버에서 보낸 동적 detail)
+      if (data.detail) {
+        step.querySelector(".step-detail").textContent = data.detail;
+      }
+    }
+  });
+}
+
+function finalizeEndProgressCard(card, result) {
+  // 모든 step done 처리
+  const steps = card.querySelectorAll(".end-progress-step");
+  steps.forEach((step) => {
+    step.classList.remove("active");
+    step.classList.add("done");
+    step.querySelector(".step-marker").innerHTML = "✓";
+  });
+
+  // 타이틀을 완료 상태로
+  const titleEl = card.querySelector(".end-progress-card-title");
+  if (titleEl) {
+    titleEl.innerHTML = `
+      <svg class="done-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="20 6 9 17 4 12"/>
+      </svg>
+      <span>저장 완료</span>
+    `;
+  }
+
+  // 결과 요약 + 옵시디언 링크 추가
+  const elapsedMin = ((result.elapsedMs ?? 0) / 60000).toFixed(1);
+  const summaryDiv = document.createElement("div");
+  summaryDiv.className = "end-progress-summary";
+  summaryDiv.innerHTML = `
+    <div class="summary-topic"><strong>${escapeHtml(result.topic ?? "")}</strong> · depth ${result.depth}</div>
+    ${result.summary ? `<div class="summary-text">${escapeHtml(result.summary)}</div>` : ""}
+    <div class="summary-stats">
+      <span>⏱ ${elapsedMin}분</span>
+      <span>·</span>
+      <span>${result.inputTokens ?? 0} in · ${result.outputTokens ?? 0} out</span>
+      ${result.bodyChars ? `<span>·</span><span>${result.bodyChars.toLocaleString()}자</span>` : ""}
+    </div>
+    ${
+      result.obsidianUri
+        ? `<a href="${escapeAttr(result.obsidianUri)}" class="obsidian-link">📖 옵시디언에서 열기</a>`
+        : ""
+    }
+    <div class="summary-path"><code>${escapeHtml(result.path ?? "")}</code></div>
+  `;
+  card.appendChild(summaryDiv);
+  scrollToBottom();
 }
 
 // ──────────────────────────────────────────────────────────

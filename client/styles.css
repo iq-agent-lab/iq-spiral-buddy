@@ -1135,3 +1135,631 @@ button.ghost {
   background: #5fd5ff;
   border-color: #5fd5ff;
 }
+
+/* ============================================================
+   Phase 2.2 — 디자인 리뉴얼 (brand, topbar, composer)
+   기존 셀렉터들을 후방 override
+   ============================================================ */
+
+:root {
+  --font-display: "Space Grotesk", "Inter", -apple-system, BlinkMacSystemFont,
+    "Pretendard", sans-serif;
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Pretendard",
+    "Apple SD Gothic Neo", "Segoe UI", "Noto Sans KR", sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", Monaco, "Cascadia Code", Consolas,
+    monospace;
+}
+
+/* ─── Brand 헤더 (큰 로고 + 모델 셀렉터) ─── */
+
+.brand {
+  padding: 22px 18px 16px;
+}
+
+.brand-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.logo-spiral {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.logo-spiral svg {
+  display: block;
+  filter: drop-shadow(0 0 12px rgba(126, 226, 255, 0.35));
+}
+
+.spiral-rotate {
+  transform-origin: 32px 32px;
+  animation: spiral-rotate 22s linear infinite reverse;
+}
+
+@keyframes spiral-rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spiral-glow-pulse {
+  transform-origin: center;
+  animation: spiral-glow-pulse 4s ease-in-out infinite;
+}
+
+@keyframes spiral-glow-pulse {
+  0%,
+  100% {
+    opacity: 0.7;
+    transform: scale(0.95);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}
+
+.spiral-center-pulse {
+  transform-origin: center;
+  animation: spiral-center-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes spiral-center-pulse {
+  0%,
+  100% {
+    opacity: 0.6;
+    r: 1.8;
+  }
+  50% {
+    opacity: 1;
+    r: 2.4;
+  }
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.brand-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  background: linear-gradient(
+    135deg,
+    #7ee2ff 0%,
+    #b794f6 60%,
+    #5fd5ff 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  line-height: 1.1;
+}
+
+.brand-subtitle {
+  font-size: 10px;
+  color: var(--text-faint);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-family: var(--font-mono);
+}
+
+/* 옛 .meta 숨김 */
+.brand .meta {
+  display: none;
+}
+
+/* ─── Model selector ─── */
+
+.model-selector {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.model-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.model-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.model-select {
+  flex: 1;
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 32px 9px 12px;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%237ee2ff' stroke-width='2.5' stroke-linecap='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  transition: border-color 0.12s, background-color 0.12s;
+}
+
+.model-select:hover {
+  border-color: var(--accent);
+}
+
+.model-select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(126, 226, 255, 0.15);
+}
+
+.model-tier-badge {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  padding: 3px 7px;
+  border-radius: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.model-tier-badge.tier-highest {
+  background: rgba(255, 183, 77, 0.15);
+  color: #ffb74d;
+  border: 1px solid rgba(255, 183, 77, 0.3);
+}
+.model-tier-badge.tier-high {
+  background: rgba(183, 148, 246, 0.15);
+  color: var(--accent-2);
+  border: 1px solid rgba(183, 148, 246, 0.3);
+}
+.model-tier-badge.tier-balanced {
+  background: rgba(126, 226, 255, 0.12);
+  color: var(--accent);
+  border: 1px solid rgba(126, 226, 255, 0.3);
+}
+.model-tier-badge.tier-fast {
+  background: rgba(63, 185, 80, 0.12);
+  color: var(--success);
+  border: 1px solid rgba(63, 185, 80, 0.3);
+}
+
+/* ─── Topbar 더 넓게 + 정보 위계 ─── */
+
+#topbar {
+  padding: 18px 28px;
+  min-height: 72px;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(
+    180deg,
+    rgba(22, 27, 34, 0.95) 0%,
+    rgba(22, 27, 34, 0.85) 100%
+  );
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+#current-chapter {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+#current-chapter .placeholder-text {
+  color: var(--text-faint);
+  font-weight: 400;
+  font-style: italic;
+}
+
+#current-chapter strong {
+  color: var(--text);
+  font-weight: 700;
+}
+
+#current-chapter .depth {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  padding: 3px 8px;
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  font-weight: 500;
+}
+
+#current-chapter .roadmap-badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--accent-2);
+  padding: 3px 8px;
+  background: rgba(183, 148, 246, 0.1);
+  border: 1px solid rgba(183, 148, 246, 0.3);
+  border-radius: 12px;
+}
+
+/* ─── Action 버튼 (Quiz / End & Save) — 시각적 위계 명확하게 ─── */
+
+#actions {
+  display: flex;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 16px;
+  border-radius: 10px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.action-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.action-btn.quiz {
+  background: rgba(183, 148, 246, 0.08);
+  color: var(--accent-2);
+  border-color: rgba(183, 148, 246, 0.35);
+}
+
+.action-btn.quiz:hover:not(:disabled) {
+  background: rgba(183, 148, 246, 0.18);
+  border-color: var(--accent-2);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(183, 148, 246, 0.2);
+}
+
+.action-btn.end {
+  background: linear-gradient(135deg, #7ee2ff 0%, #5fd5ff 100%);
+  color: #0d1117;
+  border-color: transparent;
+}
+
+.action-btn.end:hover:not(:disabled) {
+  background: linear-gradient(135deg, #5fd5ff 0%, #3ec5ff 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(126, 226, 255, 0.4);
+}
+
+.action-btn svg {
+  flex-shrink: 0;
+}
+
+/* 옛 .ghost / .primary 셀렉터 후방 override (혹시 남은 게 있으면) */
+button.ghost,
+button.primary {
+  font-family: var(--font-sans);
+}
+
+/* ─── Composer (input + send) — 정확히 정렬 ─── */
+
+.composer {
+  padding: 16px 24px 18px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-elev);
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.composer-input-wrap {
+  flex: 1;
+  position: relative;
+  display: flex;
+}
+
+#input {
+  flex: 1;
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.55;
+  resize: none;
+  min-height: 88px;
+  max-height: 240px;
+  transition: border-color 0.12s, background 0.12s, box-shadow 0.12s;
+}
+
+#input:hover:not(:disabled) {
+  border-color: rgba(126, 226, 255, 0.5);
+}
+
+#input:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--bg-elev-2);
+  box-shadow: 0 0 0 3px rgba(126, 226, 255, 0.12);
+}
+
+#input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.send-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 92px;
+  padding: 12px 18px;
+  background: linear-gradient(135deg, #7ee2ff 0%, #5fd5ff 100%);
+  color: #0d1117;
+  border: none;
+  border-radius: 12px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  align-self: stretch;
+}
+
+.send-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #5fd5ff 0%, #3ec5ff 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(126, 226, 255, 0.4);
+}
+
+.send-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.send-btn:disabled {
+  background: var(--bg-elev-2);
+  color: var(--text-faint);
+  cursor: not-allowed;
+  border: 1px solid var(--border);
+}
+
+.send-btn svg {
+  opacity: 0.95;
+}
+
+/* ─── End progress card (옵시디언 저장 단계 표시) ─── */
+
+.end-progress-card {
+  background: var(--bg-elev-2);
+  border: 1px solid var(--accent);
+  border-radius: 14px;
+  padding: 20px 22px;
+  margin: 16px 24px;
+  box-shadow: 0 4px 24px rgba(126, 226, 255, 0.15);
+  animation: end-card-in 0.25s ease-out;
+}
+
+@keyframes end-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.end-progress-card-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 14px;
+}
+
+.end-progress-card-title .spin-indicator {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(126, 226, 255, 0.3);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.end-progress-card-title .done-check {
+  width: 18px;
+  height: 18px;
+  color: var(--success);
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.end-progress-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.end-progress-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text-faint);
+  transition: color 0.2s;
+}
+
+.end-progress-step.active {
+  color: var(--text);
+}
+
+.end-progress-step.done {
+  color: var(--text-dim);
+}
+
+.end-progress-step .step-marker {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  background: var(--bg);
+}
+
+.end-progress-step.active .step-marker {
+  border-color: var(--accent);
+  background: rgba(126, 226, 255, 0.15);
+  color: var(--accent);
+  animation: marker-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes marker-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(126, 226, 255, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(126, 226, 255, 0);
+  }
+}
+
+.end-progress-step.done .step-marker {
+  border-color: var(--success);
+  background: rgba(63, 185, 80, 0.15);
+  color: var(--success);
+}
+
+.end-progress-step .step-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.end-progress-step .step-label {
+  font-weight: 600;
+}
+
+.end-progress-step .step-detail {
+  font-size: 11px;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+}
+
+/* End progress card - 완료 후 요약 */
+.end-progress-summary {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.end-progress-summary .summary-topic {
+  font-size: 14px;
+  color: var(--text);
+}
+
+.end-progress-summary .summary-text {
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.55;
+}
+
+.end-progress-summary .summary-stats {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--text-faint);
+}
+
+.end-progress-summary .obsidian-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: rgba(126, 226, 255, 0.1);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 600;
+  width: fit-content;
+  margin-top: 4px;
+  transition: all 0.15s;
+}
+
+.end-progress-summary .obsidian-link:hover {
+  background: rgba(126, 226, 255, 0.18);
+  transform: translateY(-1px);
+}
+
+.end-progress-summary .summary-path {
+  margin-top: 2px;
+}
+
+.end-progress-summary .summary-path code {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-faint);
+  background: transparent;
+  padding: 0;
+  word-break: break-all;
+}
+
+.end-progress-card.error {
+  border-color: var(--error);
+  box-shadow: 0 4px 24px rgba(248, 81, 73, 0.15);
+}

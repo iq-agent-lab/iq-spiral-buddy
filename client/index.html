@@ -4,6 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>iq-spiral-buddy</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+    />
     <link rel="stylesheet" href="/styles.css" />
     <link
       rel="stylesheet"
@@ -13,8 +19,49 @@
   <body>
     <aside id="sidebar">
       <header class="brand">
-        <h1>🌀 spiral-buddy</h1>
-        <div class="meta" id="meta">loading…</div>
+        <div class="brand-row">
+          <div class="logo-spiral" aria-hidden="true">
+            <svg viewBox="0 0 64 64" width="48" height="48">
+              <defs>
+                <radialGradient id="spiral-glow" cx="50%" cy="50%" r="50%">
+                  <stop offset="0%" stop-color="#7ee2ff" stop-opacity="0.6" />
+                  <stop offset="60%" stop-color="#7ee2ff" stop-opacity="0.12" />
+                  <stop offset="100%" stop-color="#7ee2ff" stop-opacity="0" />
+                </radialGradient>
+                <linearGradient id="spiral-stroke" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#7ee2ff" />
+                  <stop offset="50%" stop-color="#b794f6" />
+                  <stop offset="100%" stop-color="#5fd5ff" />
+                </linearGradient>
+              </defs>
+              <circle cx="32" cy="32" r="30" fill="url(#spiral-glow)" class="spiral-glow-pulse" />
+              <g class="spiral-rotate">
+                <path
+                  d="M32 32 m0 0 a3 3 0 0 1 6 0 a6 6 0 0 1 -12 0 a9 9 0 0 1 18 0 a12 12 0 0 1 -24 0 a15 15 0 0 1 30 0 a18 18 0 0 1 -36 0 a21 21 0 0 1 42 0"
+                  fill="none"
+                  stroke="url(#spiral-stroke)"
+                  stroke-width="2.5"
+                  stroke-linecap="round"
+                />
+                <circle cx="32" cy="32" r="2" fill="#7ee2ff" class="spiral-center-pulse" />
+              </g>
+            </svg>
+          </div>
+          <div class="brand-text">
+            <h1 class="brand-title">spiral-buddy</h1>
+            <div class="brand-subtitle">Socratic learning · Claude × Obsidian</div>
+          </div>
+        </div>
+
+        <div class="model-selector">
+          <label class="model-label" for="model-select">모델</label>
+          <div class="model-wrap">
+            <select id="model-select" class="model-select">
+              <option value="">loading…</option>
+            </select>
+            <span class="model-tier-badge" id="model-tier-badge"></span>
+          </div>
+        </div>
       </header>
 
       <section class="roadmap-selector" id="roadmap-section">
@@ -47,13 +94,25 @@
 
     <main id="main">
       <header id="topbar">
-        <div id="current-chapter">Select a chapter to start</div>
+        <div id="current-chapter">
+          <span class="placeholder-text">Select a chapter to start</span>
+        </div>
         <div id="actions">
-          <button id="quiz-btn" class="ghost" disabled title="짧은 자가확인 질문">
-            /quiz
+          <button id="quiz-btn" class="action-btn quiz" disabled title="짧은 자가확인 질문 받기">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+              <circle cx="12" cy="12" r="10"/>
+            </svg>
+            <span>Quiz</span>
           </button>
-          <button id="end-btn" class="primary" disabled title="세션 종료 + 노트 생성">
-            /end
+          <button id="end-btn" class="action-btn end" disabled title="세션 종료 + 노트 생성">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+              <polyline points="17 21 17 13 7 13 7 21"/>
+              <polyline points="7 3 7 8 15 8"/>
+            </svg>
+            <span>End &amp; Save</span>
           </button>
         </div>
       </header>
@@ -66,13 +125,21 @@
       </div>
 
       <form id="input-form" class="composer">
-        <textarea
-          id="input"
-          rows="2"
-          placeholder="세션을 시작하면 입력할 수 있어요"
-          disabled
-        ></textarea>
-        <button type="submit" id="send-btn" disabled>Send</button>
+        <div class="composer-input-wrap">
+          <textarea
+            id="input"
+            rows="3"
+            placeholder="세션을 시작하면 입력할 수 있어요"
+            disabled
+          ></textarea>
+        </div>
+        <button type="submit" id="send-btn" class="send-btn" disabled>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="22" y1="2" x2="11" y2="13"/>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+          </svg>
+          <span>Send</span>
+        </button>
       </form>
 
       <div id="status-bar" class="status-bar"></div>

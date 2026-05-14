@@ -20,13 +20,14 @@ export async function streamTurn(
     system: string;
     messages: ClaudeMessage[];
     onText?: (chunk: string) => void | Promise<void>;
+    model?: string;
   },
 ): Promise<{ text: string; usage: { input: number; output: number } }> {
   const { system, messages, onText } = args;
 
   let fullText = "";
   const stream = client.raw.messages.stream({
-    model: client.config.model,
+    model: args.model ?? client.config.model,
     max_tokens: client.config.maxTokens,
     system,
     messages,
@@ -61,10 +62,11 @@ export async function completeOnce(
     system: string;
     messages: ClaudeMessage[];
     maxTokens?: number;
+    model?: string;
   },
 ): Promise<{ text: string; usage: { input: number; output: number } }> {
   const response = await client.raw.messages.create({
-    model: client.config.model,
+    model: args.model ?? client.config.model,
     max_tokens: args.maxTokens ?? client.config.maxTokens,
     system: args.system,
     messages: args.messages,

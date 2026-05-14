@@ -132,6 +132,42 @@ export function createApi(config: Config) {
   );
 
   // ─────────────────────────────────────────────────────
+  // 1-b. Models (선택 가능한 모델 목록)
+  // ─────────────────────────────────────────────────────
+
+  app.get("/models", (c) =>
+    c.json({
+      default: config.model,
+      models: [
+        {
+          id: "claude-opus-4-7",
+          label: "Opus 4.7",
+          tier: "highest",
+          description: "가장 똑똑함. 깊은 추론·복잡한 학습 대화에 최적",
+        },
+        {
+          id: "claude-opus-4-6",
+          label: "Opus 4.6",
+          tier: "high",
+          description: "균형형. 비싸지만 학습 품질 높음",
+        },
+        {
+          id: "claude-sonnet-4-6",
+          label: "Sonnet 4.6",
+          tier: "balanced",
+          description: "추천 기본값. 빠르고 충분히 똑똑함",
+        },
+        {
+          id: "claude-haiku-4-5",
+          label: "Haiku 4.5",
+          tier: "fast",
+          description: "가장 빠름. 가벼운 질의·진도 빠른 학습용",
+        },
+      ],
+    }),
+  );
+
+  // ─────────────────────────────────────────────────────
   // 2. Roadmaps (Local + Curated 설치된 것들)
   // ─────────────────────────────────────────────────────
 
@@ -402,7 +438,7 @@ export function createApi(config: Config) {
 
   app.post("/session/start", async (c) => {
     const body = await c.req
-      .json<{ chapterId: string; roadmapId?: string }>()
+      .json<{ chapterId: string; roadmapId?: string; model?: string }>()
       .catch(() => null);
     if (!body?.chapterId) {
       return c.json({ error: "chapterId required" }, 400);
@@ -433,7 +469,12 @@ export function createApi(config: Config) {
     const depth = priorOnSame.length + 1;
     const related = priorOnSame.slice(0, 5);
 
-    const session = createSession({ chapter, depth, related });
+    const session = createSession({
+      chapter,
+      depth,
+      related,
+      model: body.model,
+    });
 
     const initialContext = buildInitialContext(chapter, related, depth);
     session.messages.push({ role: "user", content: initialContext });
@@ -444,12 +485,14 @@ export function createApi(config: Config) {
     c.header("X-Roadmap-Id", encodeURIComponent(roadmap.id));
     c.header("X-Roadmap-Name", encodeURIComponent(roadmap.name));
     c.header("X-Related-Count", String(related.length));
+    c.header("X-Model", session.model ?? config.model);
 
     return streamText(c, async (stream) => {
       try {
         const { text, usage } = await streamTurn(client, {
           system: SESSION_SYSTEM,
           messages: session.messages,
+          model: session.model,
           onText: (chunk) => {
             stream.write(chunk).catch(() => {});
           },
@@ -477,6 +520,7 @@ export function createApi(config: Config) {
         const { text, usage } = await streamTurn(client, {
           system: SESSION_SYSTEM,
           messages: session.messages,
+          model: session.model,
           onText: (chunk) => {
             stream.write(chunk).catch(() => {});
           },
@@ -497,39 +541,72 @@ export function createApi(config: Config) {
     if (!config.vaultPath) {
       return c.json({ error: "Missing vault config" }, 400);
     }
+    const vaultPath = config.vaultPath;
 
-    try {
-      const note = await generateNote(client, {
-        chapter: session.chapter,
-        transcript: session.messages,
-        related: session.related,
-        depth: session.depth,
-      });
-      const writtenPath = await writeNewNote(config.vaultPath, note);
-      const elapsedMs = Date.now() - session.startedAt;
-      const summary = note.summary;
-      const inputTokens = session.totalInputTokens;
-      const outputTokens = session.totalOutputTokens;
-      const depth = session.depth;
-      const topic = note.topic;
-      deleteSession(session.id);
-      return c.json({
-        path: writtenPath,
-        relativePath: path.basename(writtenPath),
-        obsidianUri: obsidianUri(writtenPath),
-        elapsedMs,
-        inputTokens,
-        outputTokens,
-        depth,
-        topic,
-        summary,
-        roadmapName: session.chapter.roadmapName,
-        roadmapId: session.chapter.roadmapId,
-      });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "unknown";
-      return c.json({ error: msg }, 500);
-    }
+    // SSE로 진행 단계 전송
+    c.header("Content-Type", "text/event-stream");
+    c.header("Cache-Control", "no-cache");
+    c.header("X-Accel-Buffering", "no");
+
+    return streamText(c, async (stream) => {
+      function send(event: string, data: Record<string, unknown>) {
+        return stream.write(
+          `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`,
+        );
+      }
+      try {
+        await send("stage", {
+          stage: "analyzing",
+          label: "대화 분석 중",
+          detail: `${session.messages.length} 메시지를 8섹션 구조로 정리`,
+        });
+
+        const note = await generateNote(client, {
+          chapter: session.chapter,
+          transcript: session.messages,
+          related: session.related,
+          depth: session.depth,
+        });
+
+        await send("stage", {
+          stage: "writing",
+          label: "노트 파일 작성",
+          detail: `${note.topic} (depth ${session.depth})`,
+        });
+
+        const writtenPath = await writeNewNote(vaultPath, note);
+
+        await send("stage", {
+          stage: "saving",
+          label: "Obsidian vault에 저장",
+          detail: path.basename(writtenPath),
+        });
+
+        const elapsedMs = Date.now() - session.startedAt;
+        const result = {
+          path: writtenPath,
+          relativePath: path.basename(writtenPath),
+          obsidianUri: obsidianUri(writtenPath),
+          elapsedMs,
+          inputTokens: session.totalInputTokens,
+          outputTokens: session.totalOutputTokens,
+          depth: session.depth,
+          topic: note.topic,
+          summary: note.summary,
+          tagsCount: note.tags.length,
+          bodyChars: note.body.length,
+          roadmapName: session.chapter.roadmapName,
+          roadmapId: session.chapter.roadmapId,
+        };
+
+        deleteSession(session.id);
+
+        await send("done", result);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "unknown";
+        await send("error", { message: msg });
+      }
+    });
   });
 
   app.post("/session/:id/cancel", (c) => {
