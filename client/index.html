@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>iq-spiral-buddy</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/highlight.js@11.10.0/styles/github-dark.min.css"
+    />
+  </head>
+  <body>
+    <aside id="sidebar">
+      <header class="brand">
+        <h1>🌀 spiral-buddy</h1>
+        <div class="meta" id="meta">loading…</div>
+      </header>
+
+      <section class="roadmap-selector" id="roadmap-section">
+        <h2>Roadmap</h2>
+        <button id="roadmap-current" class="roadmap-current">
+          <span class="roadmap-name">loading…</span>
+          <span class="caret">▼</span>
+        </button>
+        <div id="roadmap-list" class="roadmap-list hidden"></div>
+      </section>
+
+      <section class="suggestion" id="suggestion-box">
+        <div class="loading">🧭 Analyzing trajectory…</div>
+      </section>
+
+      <section class="chapters">
+        <h2>Chapters</h2>
+        <ol id="chapter-list" class="list">
+          <li class="loading">loading…</li>
+        </ol>
+      </section>
+
+      <section class="history">
+        <h2>Past sessions (이 로드맵)</h2>
+        <ol id="history-list" class="list">
+          <li class="loading">loading…</li>
+        </ol>
+      </section>
+    </aside>
+
+    <main id="main">
+      <header id="topbar">
+        <div id="current-chapter">Select a chapter to start</div>
+        <div id="actions">
+          <button id="quiz-btn" class="ghost" disabled title="짧은 자가확인 질문">
+            /quiz
+          </button>
+          <button id="end-btn" class="primary" disabled title="세션 종료 + 노트 생성">
+            /end
+          </button>
+        </div>
+      </header>
+
+      <div id="messages" class="messages">
+        <div class="placeholder">
+          <p>왼쪽에서 챕터를 골라 세션을 시작하거나,</p>
+          <p><strong>Start with suggestion</strong> 버튼으로 추천 챕터를 시작하세요.</p>
+        </div>
+      </div>
+
+      <form id="input-form" class="composer">
+        <textarea
+          id="input"
+          rows="2"
+          placeholder="세션을 시작하면 입력할 수 있어요"
+          disabled
+        ></textarea>
+        <button type="submit" id="send-btn" disabled>Send</button>
+      </form>
+
+      <div id="status-bar" class="status-bar"></div>
+    </main>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
