@@ -1,179 +1,169 @@
-# iq-spiral-buddy
+# 🌀 iq-spiral-buddy
 
-> Spiral learning companion that bridges Claude and Obsidian. Local web app.
+> Spiral learning companion that bridges Claude and Obsidian.
+> 로컬 웹앱 + Claude Desktop MCP 동시 제공.
 
-학습 로드맵을 기반으로 Claude와 학습 세션을 진행하고, 그 결과를 옵시디언에 **나선형 구조로 자동 축적**하는 로컬 웹앱. `pnpm dev` 치면 브라우저가 자동으로 열리고, 다음 세션엔 이전 노트가 자동 컨텍스트로 들어가서 "어디까지 했더라"를 매번 다시 만들 필요가 없다.
+학습 로드맵을 기반으로 Claude와 Socratic 학습 세션을 진행하고, 그 결과를 옵시디언에 **나선형 구조로 자동 축적**하는 도구. `pnpm dev` 치면 브라우저가 자동으로 열리고, 다음 세션엔 이전 노트가 자동 컨텍스트로 들어가서 "어디까지 했더라"를 매번 다시 만들 필요가 없다.
+
+```
+📁 Local 로드맵 + 📚 GitHub Curated 레포 → Claude 학습 세션 → 8섹션 노트 → Obsidian
+```
 
 ## 무엇이 다른가
 
-옵시디언 + AI 도구는 이미 많다. `iq-spiral-buddy`의 세 가지 차별점:
+옵시디언 + AI 도구는 이미 많다. spiral-buddy의 차별점:
 
-1. **로드맵 주도(Roadmap-driven)** — vault 안에서 채팅하는 게 아니라, 외부 학습 커리큘럼(레포의 README나 챕터 디렉토리)을 1급 시민으로 다룬다. "오늘 뭐 배울까"를 도구가 제안한다.
-2. **나선형 감지(Spiral detection)** — 새 세션 시작 시 이전 노트를 스캔해 어떤 챕터를 한 번 더 깊게 볼지, 새로 진도 나갈지, 이전 학습과 연결지을지 Claude가 판단한다.
-3. **세션 후 구조화(Structured exhaust)** — 대화 로그를 통째로 노트로 만드는 게 아니라, 정해진 8-섹션 템플릿(요약 / 핵심 개념 / 직관 / 헷갈렸던 점 / 다음에 볼 것 등)에 맞춰 Claude가 정리한다.
+1. **로드맵 주도** — vault 안에서 채팅하는 게 아니라, 외부 학습 커리큘럼(`SPIRAL_ROADMAP_ROOT`의 폴더 트리, 또는 GitHub 조직의 public 레포)을 1급 시민으로 다룬다. "오늘 뭐 배울까"를 도구가 제안한다.
+2. **나선형 감지(Spiral detection)** — 새 세션 시작 시 이전 노트를 스캔해 같은 챕터를 더 깊게 갈지(`deeper-layer`), 새 진도 나갈지(`next-chapter`), 멀리 떨어진 챕터를 연결할지(`cross-link`) Claude가 판단한다.
+3. **세션 후 구조화** — 대화 로그를 통째로 저장하는 게 아니라, 8-섹션 템플릿(요약 / 핵심 개념 / 직관·비유 / 짚고 넘어간 예제 / 헷갈렸던 지점 / 이전 학습과의 연결 / 다음에 볼 것)에 맞춰 Claude가 정리한다. 누락된 섹션은 자동 보충.
+4. **두 가지 source 공존** — 사용자의 로컬 디렉토리(Local) + GitHub 조직 큐레이션(Curated, default: `iq-dev-lab`의 38+개 deep-dive 레포). on-demand 클론으로 디스크 절약.
+5. **두 가지 진입점** — 로컬 웹앱(streaming 채팅 UI + 진도/사이드바)과 Claude Desktop MCP(7개 도구). 같은 노트 vault 공유.
 
 ## Status
 
-🚧 **Phase 2 — Curated GitHub source**
+✅ **Phase 2.3 — Stable**
 
-세 가설을 검증하는 단계:
+핵심 기능 다 동작. 세 가설 검증 중:
 - 로드맵 주도 세션이 그냥 채팅보다 학습 효과가 있는가
 - 자동 생성된 노트가 나중에 다시 봤을 때 쓸 만한가
 - 나선형 감지가 의미 있는 연결을 찾아내는가
 
-새로 추가된 차원: **다른 사람도 spiral-buddy 깃클론만으로 즉시 학습 시작 가능** — iq-dev-lab의 deep-dive 시리즈가 디폴트로 노출되고, 클릭 시 on-demand 클론된다.
+상세 design docs: [docs/phase-1.5-dynamic-roadmaps.md](docs/phase-1.5-dynamic-roadmaps.md), [docs/phase-2-curated.md](docs/phase-2-curated.md)
 
-자세한 건 [docs/phase-2-curated.md](docs/phase-2-curated.md), [docs/phase-1.5-dynamic-roadmaps.md](docs/phase-1.5-dynamic-roadmaps.md).
-
-## 설치
+## 설치 + 첫 실행
 
 ```bash
 git clone https://github.com/iq-agent-lab/iq-spiral-buddy
 cd iq-spiral-buddy
 pnpm install
 cp .env.example .env
-# .env 열어서 ANTHROPIC_API_KEY, SPIRAL_VAULT_PATH 입력
+# .env 편집: ANTHROPIC_API_KEY, SPIRAL_VAULT_PATH 두 개만 필수
 # SPIRAL_ROADMAP_ROOT는 빈 칸으로 둬도 OK — iq-dev-lab의 38+개 학습 레포가 디폴트로 노출됨
-```
-
-요구사항: Node.js 20+, [Anthropic API 키](https://console.anthropic.com/), [Obsidian](https://obsidian.md/) vault.
-
-## 사용
-
-```bash
 pnpm dev
 ```
 
-이게 끝. 자동으로:
-1. 서버가 `http://localhost:3737`에 뜸
-2. 브라우저 자동으로 열림
-3. 좌측 사이드바 상단에 **로드맵 셀렉터** — 두 가지 source 노출:
-   - 📁 **Local** — `SPIRAL_ROADMAP_ROOT` 아래 자동 탐지 (개인 자료)
-   - 📚 **Curated** — `iq-dev-lab` 조직의 38+개 deep-dive 시리즈 (받기 가능 토글)
-4. Curated 레포 "📥 받기" 클릭 → on-demand `git clone --depth=1` → 자동으로 학습 시작 가능
-5. 챕터 클릭하거나 "Start with this" 누르면 세션 시작
-6. 대화 끝나면 `/end` 버튼 → 옵시디언에 노트 자동 생성/저장 (frontmatter에 `roadmap_id` 기록)
+요구사항: Node.js 20+, pnpm 9+, [Anthropic API 키](https://console.anthropic.com/), [Obsidian](https://obsidian.md/) vault, `git` (Curated 클론용).
 
-마지막으로 선택한 로드맵은 브라우저 localStorage에 저장되어 다음 부팅 시 복원된다.
+부팅 후 자동으로 `http://localhost:3737` 열림.
 
-브라우저 자동 오픈이 싫으면 `.env`에 `NO_OPEN=1` 추가.
+### 첫 사용자 흐름 (5분 안에)
 
-### 단축키
-- `Enter`: 메시지 전송
-- `Shift + Enter`: 줄바꿈
+1. 좌측 사이드바 → **📚 Curated · 받기 가능 보기** 토글 클릭
+2. iq-dev-lab의 38개 레포가 9개 카테고리(☕ Java Core, 🍃 Spring Ecosystem, 🗄️ Database, …)로 묶여 표시됨
+3. 카테고리 클릭해서 펼치고 관심 가는 레포의 **📥 받기** 클릭 → on-demand `git clone --depth=1` (10-30초)
+4. 클론 완료되면 자동으로 첫 챕터의 학습 세션이 활성화 가능 상태
+5. 챕터 클릭 → Claude가 Socratic 질문으로 학습 시작
+6. 대화 끝나면 **End & Save** 버튼 → 8섹션 노트가 Obsidian에 자동 저장 (단계별 진행 카드로 시각화)
 
-### 버튼
-- `/quiz` — Claude가 짧은 자가확인 질문 던짐
-- `/end` — 세션 종료 + 노트 생성/저장 + history 갱신
+## 사이드바 구조
+
+```
+🌀 spiral buddy
+   [모델 ▼  Sonnet 4.6  (balanced)]      ← 모델 선택 (Opus 4.7/4.6 / Sonnet 4.6 / Haiku 4.5)
+─────────────
+ROADMAP
+   [📁 transaction-mvcc       2/7 ▼]    ← 현재 active 로드맵
+─────────────
+🧭 SUGGESTION (이 로드맵 기준)             ← Claude가 deeper-layer/next-chapter/cross-link 판단
+─────────────
+CHAPTERS (이 로드맵의 챕터들)
+   1. ACID                  d2
+   2. Isolation
+   ...
+─────────────
+PAST SESSIONS (이 로드맵)
+   d1 · 2026-05-13 · ACID
+   ...
+```
+
+**로드맵 셀렉터 펼치면** 3-level 계층:
+- **📁 Local · 9 카테고리 · 38 레포 · 286 로드맵**
+  - ▶ ☕ Java Core (7 레포)
+    - ▶ 📦 jvm-deep-dive (10 챕터)
+    - ▶ 📦 java-concurrency-deep-dive (40 챕터)
+    - ...
+- **📚 Curated · iq-dev-lab (받은 거만)**
+- **▶ 받기 가능 보기 (남은 거)**
+
+active 로드맵의 카테고리/레포는 자동으로 펼친 상태로 시작. 학습 중 다른 데 보고 싶으면 사이드바 닫기(**⌘B / Ctrl+B**)도 가능.
 
 ## 환경변수
 
 | 변수 | 설명 | 기본값 |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | Claude API 키 (웹앱 전용 — MCP는 Claude Desktop 자체 인증 사용) | (필수) |
-| `SPIRAL_VAULT_PATH` | 옵시디언 vault 루트 (또는 그 하위 폴더 — `.obsidian/` 자동 탐지됨) | (필수) |
-| `SPIRAL_ROADMAP_ROOT` | 로컬 로드맵 root 디렉토리 (Local source). 미설정이면 Curated만 사용. | (선택) |
-| `SPIRAL_ROADMAP_PATH` | (legacy) 단일 로드맵만 강제 지정. 설정 시 다른 로컬 로드맵은 안 보임. | (선택) |
+| `ANTHROPIC_API_KEY` | Claude API 키 (웹앱 전용 — MCP는 Claude Desktop 자체 인증 사용) | **(필수)** |
+| `SPIRAL_VAULT_PATH` | 옵시디언 vault 루트 또는 그 하위 폴더 (`.obsidian/` 자동 탐지) | **(필수)** |
+| `SPIRAL_ROADMAP_ROOT` | 로컬 로드맵 root. 미설정이면 Curated만 사용 | (선택) |
+| `SPIRAL_ROADMAP_PATH` | (legacy) 단일 로드맵만 강제 지정 | (선택) |
 | `SPIRAL_CURATED_ORG` | Curated source의 GitHub 조직 이름 | `iq-dev-lab` |
-| `SPIRAL_DISABLE_CURATED` | `1`로 설정하면 Curated source 완전 꺼짐 (Local만 사용) | (off) |
-| `SPIRAL_GITHUB_TOKEN` | GitHub API 호출 시 인증 토큰. unauth 60 req/hr → auth 5000 req/hr | (선택) |
-| `SPIRAL_VAULT_NAME` | 옵시디언에 등록된 vault 이름 (폴더명과 다를 때만) | 자동 탐지 |
-| `SPIRAL_MODEL` | Claude 모델 id | `claude-sonnet-4-6` |
+| `SPIRAL_DISABLE_CURATED` | `1`로 설정하면 Curated source 꺼짐 (Local만) | (off) |
+| `SPIRAL_GITHUB_TOKEN` | GitHub API 인증. unauth 60req/hr → auth 5000req/hr | (선택) |
+| `SPIRAL_VAULT_NAME` | 옵시디언 vault 이름 (폴더명과 다를 때만) | 자동 탐지 |
+| `SPIRAL_MODEL` | 기본 Claude 모델 (UI에서 변경 가능) | `claude-sonnet-4-6` |
 | `SPIRAL_MAX_TOKENS` | 응답당 최대 토큰 | `4096` |
 | `PORT` | 웹서버 포트 | `3737` |
 | `NO_OPEN` | `1`로 설정하면 브라우저 자동 오픈 안 함 | (off) |
 
-### Local vs Curated 로드맵
+## 로드맵 자동 탐지 규칙
 
-**Local** — 사용자의 로컬 디렉토리(`SPIRAL_ROADMAP_ROOT`) 아래에서 자동 탐지:
-- 로드맵 = README.md를 제외한 `.md` 파일이 2개 이상 직접 들어있는 디렉토리
+`SPIRAL_ROADMAP_ROOT` 아래에서:
+- **로드맵 = README.md를 제외한 `.md` 파일이 2개 이상 직접 들어있는 디렉토리**
 - 최대 깊이 6단계까지 재귀 탐색
-- 로드맵으로 인식된 디렉토리 안은 더 탐색하지 않음
-
-**Curated** — GitHub 조직의 public 레포 (기본 `iq-dev-lab`):
-- 처음엔 목록만 GitHub API로 가져옴 (1시간 캐시)
-- "📥 받기" 클릭 시 on-demand `git clone --depth=1`로 `.cache/curated/<org>/<repo>/`에 캐시
-- archived/fork/private/0byte 레포는 자동 제외
-- 한 레포가 여러 sub-roadmap을 포함할 수 있음 (예: `spring-core-deep-dive`의 `ioc-container/`, `transaction-mvcc/`)
-- id는 `curated:<org>/<repo>[/<sub-path>]` prefix로 Local과 구분
-
-## Claude Desktop (MCP) 통합
-
-웹앱과 별개로 Claude Desktop에서도 spiral-buddy를 도구로 사용할 수 있다. 같은 코어(roadmap/vault) 공유.
-
-### 설정
-
-`~/Library/Application Support/Claude/claude_desktop_config.json` 파일을 열어서 (없으면 새로 생성):
-
-```json
-{
-  "mcpServers": {
-    "iq-spiral-buddy": {
-      "command": "npx",
-      "args": [
-        "tsx",
-        "/Users/ibm514/iq-lab/iq-agent-lab/iq-spiral-buddy/src/mcp.ts"
-      ]
-    }
-  }
-}
-```
-
-경로는 본인 환경에 맞게 수정. `.env`는 패키지 루트에서 자동으로 로드되므로 별도 환경변수 설정 불필요 (단 `ANTHROPIC_API_KEY`는 MCP에선 안 씀 — Claude Desktop이 자체 인증).
-
-Claude Desktop을 재시작하면 입력창 도구 아이콘에서 `iq-spiral-buddy` 도구 5개가 보임.
-
-### 사용
-
-자연어로 요청하면 됨. Claude가 적절한 도구를 순서대로 호출함:
-
-> "spiral-buddy로 학습할 만한 로드맵 뭐 있어?"
-→ Claude가 `spiral_list_roadmaps` 호출 → 표 형식으로 모든 로드맵 + 진도 보여줌
-
-> "transaction-mvcc 로드맵의 ACID 챕터 deeper-layer로 가자"
-→ `spiral_list_chapters({roadmap_id: "transaction-mvcc"})` → `spiral_get_chapter_context({roadmap_id, chapter_id: "01-acid.md"})` → 학습 대화 → `spiral_save_note`
-
-> "redis 학습한 노트들 보여줘"
-→ `spiral_list_notes({roadmap_id: "redis-deep-dive"})`
-
-### 등록된 도구 (7개)
-
-- `spiral_list_roadmaps` — Local + Curated 통합 표시. `include_available=true`로 미설치 큐레이션 레포도 함께 볼 수 있음.
-- `spiral_install_curated` — **[Phase 2 신규]** GitHub 조직 레포 on-demand 클론
-- `spiral_list_chapters` — 특정 로드맵의 챕터 + 학습 진도 (`roadmap_id` 인자)
-- `spiral_get_chapter_context` — 챕터 본문 + 이전 노트 (세션 시작용)
-- `spiral_list_notes` — 과거 노트 인덱스 (로드맵별 필터 가능)
-- `spiral_read_note` — 특정 노트 본문 읽기
-- `spiral_save_note` — 8섹션 구조화 노트 저장 (누락 섹션 자동 보충)
-
-모든 도구의 응답은 **풍부한 마크다운**으로 반환됨. Claude Desktop이 표/리스트를 그대로 렌더링하므로 별도 가공 없이 사용자에게 보여줄 수 있다.
-
-### 웹앱 vs MCP, 언제 뭘 쓰나
-
-- **웹앱** (`pnpm dev`) — 한 챕터를 집중해서 깊게 파고들 때. 챕터 사이드바, 진도 뱃지, 마크다운/코드 렌더링이 차별점.
-- **MCP** (Claude Desktop) — Claude와 자연스럽게 chat하다가 spiral-buddy 데이터를 참조/저장하고 싶을 때. 다른 작업 중간에 가볍게 끼워 쓸 때.
-
-## 출력되는 노트 구조
-
-vault에 이렇게 저장된다:
+- 로드맵으로 인식된 디렉토리 안은 더 탐색하지 않음 (sub-section 오인 방지)
 
 ```
-<vault>/
-  spiral-buddy/
-    _index.md                                      ← 모든 세션 인덱스
-    2026-05-13-memory-model-d1.md                  ← depth 1 (첫 학습)
-    2026-05-20-memory-model-d2.md                  ← 같은 주제 깊게 (depth 2)
-    2026-05-22-replication-d1.md
+iq-dev-lab/                              ← root
+├── spring ecosystem/                    ← 카테고리 (.md 없으면 통과)
+│   └── spring-core-deep-dive/           ← 레포 (.md 없으면 통과)
+│       ├── ioc-container/               ← 여기 .md 2개+ → 로드맵
+│       │   ├── 01-beanfactory.md
+│       │   └── 02-applicationcontext.md
+│       └── transaction-mvcc/            ← 또 다른 로드맵
+│           ├── 01-acid.md
+│           └── 02-isolation.md
+└── redis-deep-dive/                     ← 로드맵
+    ├── 01-data-structures.md
+    └── ...
 ```
 
-각 노트의 구조:
+탐지 결과:
+- `spring ecosystem/spring-core-deep-dive/ioc-container`
+- `spring ecosystem/spring-core-deep-dive/transaction-mvcc`
+- `redis-deep-dive`
+
+UI에선 path 첫 segment가 카테고리(`spring ecosystem` → 🍃 Spring Ecosystem)로, 두 번째 segment가 레포(`spring-core-deep-dive`)로, 세 번째 이후가 sub-roadmap으로 자동 분류.
+
+## Curated source (GitHub 큐레이션)
+
+기본값으로 `iq-dev-lab` 조직의 public 레포를 학습 자료로 노출. 다른 사람도 spiral-buddy를 clone만 하면 즉시 학습 시작 가능.
+
+특징:
+- **목록만 GitHub API로** (1시간 캐시) → API 요청 절약
+- **레포는 사용자 클릭 시점에만 클론** (`git clone --depth=1`) → 디스크 절약
+- archived/fork/private/0byte/meta(.github, *.github.io) 자동 제외
+- 한 레포가 여러 sub-roadmap을 가질 수 있음 (sub-directory별로)
+- `iq-dev-lab`의 38개 레포가 9개 카테고리로 자동 매핑 (`data/curated-categories.json`)
+
+다른 조직 학습 자료 만들고 싶으면:
+```bash
+# .env
+SPIRAL_CURATED_ORG=your-org
+```
+
+화이트리스트 카테고리 매핑 추가는 `data/curated-categories.json`에 추가하면 됨 (없어도 단일 'All' 카테고리로 fallback).
+
+## 노트 출력 (Obsidian)
+
+저장 위치: `<vault>/spiral-buddy/`
+
+파일명: `<날짜>-<주제>-d<depth>.md`
 
 ```yaml
 ---
 title: "ACID"
 topic: "ACID"
 date: 2026-05-13
-depth: 1
+depth: 2
 chapter_id: "01-acid.md"
 roadmap: "transaction-mvcc"
 roadmap_id: "spring ecosystem/spring-core-deep-dive/transaction-mvcc"
@@ -185,38 +175,110 @@ generator: iq-spiral-buddy
 ---
 
 ## 한 줄 요약
+...
+
 ## 핵심 개념
+...
+
 ## 직관 / 비유
+...
+
 ## 짚고 넘어간 예제
-## 헷갈렸던 / 확인이 필요한 지점     ← 다음 세션의 진입점
+...
+
+## 헷갈렸던 / 확인이 필요한 지점
+...
+
 ## 이전 학습과의 연결
+...
+
 ## 다음에 볼 것
+...
 ```
 
-> "헷갈렸던 / 확인이 필요한 지점" 섹션이 이 도구의 심장이다. 다음 나선 회기 때 Claude가 가장 먼저 보는 곳.
+8섹션 헤딩 중 누락된 게 있으면 `_이번 세션에서 다루지 않음._` 한 줄로 자동 보충 + UI에 경고.
+
+`roadmap_id`는 글로벌 unique 식별자(root-relative path). `chapter_id`는 roadmap 내부 path. 두 값의 튜플이 글로벌 챕터 식별.
+
+옛 스키마(`roadmap_id` 없음) 노트와도 호환 매칭 — basename + suffix 룰로 진도 계산에 포함.
+
+## MCP 서버 (Claude Desktop)
+
+웹앱 외에 Claude Desktop에서 자연어로 spiral-buddy 사용 가능. 7개 도구:
+
+```json
+// Claude Desktop config
+{
+  "mcpServers": {
+    "iq-spiral-buddy": {
+      "command": "pnpm",
+      "args": ["--dir", "/path/to/iq-spiral-buddy", "mcp"],
+      "env": {
+        "ANTHROPIC_API_KEY": "...",
+        "SPIRAL_VAULT_PATH": "/path/to/Obsidian Vault",
+        "SPIRAL_ROADMAP_ROOT": "/path/to/iq-dev-lab"
+      }
+    }
+  }
+}
+```
+
+### 등록된 도구
+
+| 도구 | 용도 |
+|---|---|
+| `spiral_list_roadmaps` | Local + Curated 통합 표시. `include_available=true`로 미설치 큐레이션 레포도 |
+| `spiral_install_curated` | GitHub 조직 레포 on-demand 클론 |
+| `spiral_list_chapters` | 특정 로드맵의 챕터 + 학습 진도 |
+| `spiral_get_chapter_context` | 챕터 본문 + 이전 노트 (세션 시작용) |
+| `spiral_list_notes` | 과거 노트 인덱스 (로드맵별 필터) |
+| `spiral_read_note` | 특정 노트 본문 읽기 |
+| `spiral_save_note` | 8섹션 구조화 노트 저장 (누락 자동 보충) |
+
+모든 도구 응답은 풍부한 마크다운 표/리스트로 반환되어 Claude Desktop이 가공 없이 그대로 보여줌.
+
+자연어 사용 예시:
+> "spiral-buddy로 학습할 만한 로드맵 뭐 있어?"
+→ `spiral_list_roadmaps` → 표 출력
+
+> "transaction-mvcc 로드맵의 ACID 챕터 deeper-layer로 가자"
+→ `spiral_list_chapters` → `spiral_get_chapter_context` → 학습 대화 → `spiral_save_note`
+
+> "redis-deep-dive 받아서 시작하자"
+→ `spiral_install_curated` → `spiral_list_chapters` → …
+
+## 웹앱 핵심 UX
+
+- **세션 인터럽트 처리** — 학습 중 다른 챕터로 이동하려 하면 3-way modal: **저장하고 이동** / **폐기하고 이동** / **취소**. 옛날엔 confirm 하나로 30분 대화가 그냥 사라지는 게 가능했지만 이제 안 됨.
+- **End 진행 시각화** — 노트 저장이 SSE로 3단계(대화 분석 → 노트 작성 → vault 저장) 표시. 완료 후 카드 안에 요약 + 옵시디언에서 열기 버튼.
+- **사이드바 토글** — `⌘B` / `Ctrl+B`로 학습 중 사이드바 숨겨서 집중 모드. 상태는 localStorage 저장.
+- **모델 선택** — 헤더 드롭다운으로 세션 시작 전 모델 선택. tier 뱃지(highest/high/balanced/fast).
+- **계층 사이드바** — Category → Repo → Sub-roadmap 3-level. active 로드맵의 cat/repo는 자동 펼침 (사용자가 닫으면 그 의도 유지 — 매 렌더마다 다시 펼치지 않음).
+- **페이지 닫기 경고** — 세션 중 탭 닫으면 `beforeunload` 경고로 손실 방지.
 
 ## 아키텍처
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  Browser (vanilla JS + marked + highlight.js via CDN)  │
-│   ↕ fetch + streaming response body                    │
+│  Browser (vanilla JS · ES module · marked · hljs)      │
+│   ↕ fetch + SSE                                         │
 │  Hono server on localhost:3737                          │
-│   ├ /api/roadmaps                                       │
-│   ├ /api/chapters?roadmap_id=...                        │
-│   ├ /api/history?roadmap_id=...                         │
-│   ├ /api/suggest?roadmap_id=...                         │
-│   ├ /api/session/{start, message, end}                  │
-│   └ static client files                                 │
-│   ↕ in-process modules                                  │
-│  roadmap.ts → discoverRoadmaps(<ROADMAP_ROOT>)         │
-│  vault.ts → reads/writes <VAULT>/spiral-buddy/          │
-│  spiral.ts → Claude judges next chapter (per roadmap)   │
-│  note-writer.ts → 8-section structuring + validation    │
-│  claude.ts → Anthropic SDK wrapper                      │
+│   ├ /api/{config, models, roadmaps, chapters, history}  │
+│   ├ /api/curated/{available, install, refresh, etc.}    │
+│   ├ /api/session/{start, message, end, cancel}          │
+│   └ static client                                       │
+│   ↕ in-process                                          │
+│  roadmap.ts      → discoverRoadmaps(ROADMAP_ROOT)       │
+│  curated.ts      → GitHub API + on-demand git clone     │
+│  categories.ts   → org → categories 매핑                 │
+│  vault.ts        → vault 노트 R/W (8섹션, 호환 매칭)      │
+│  spiral.ts       → Claude judges next chapter           │
+│  note-writer.ts  → 8섹션 구조화 + 누락 자동 보충         │
+│  session-store.ts → in-memory session map               │
+│  claude.ts       → Anthropic SDK wrapper (model 분기)    │
 │                                                          │
-│  mcp.ts (separate entry) ──────────────► Claude Desktop │
-│   stdio transport · 6 tools · markdown-first responses  │
+│  mcp.ts (별도 entry) ───────────► Claude Desktop        │
+│   stdio · 7 tools · markdown-first responses            │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -227,10 +289,17 @@ generator: iq-spiral-buddy
 - [x] Phase 0 — CLI 프로토타입 (폐기)
 - [x] Phase 0.5 — 로컬 웹앱 MVP
 - [x] Phase 1 — MCP 서버 + Claude Desktop 통합
-- [x] Phase 1.5 — 동적 로드맵 선택 + MCP 마크다운 응답
-- [x] **Phase 2 — Curated GitHub source (현재)** ← 여기
-- [ ] Phase 3 — Tauri standalone 패키징 또는 Obsidian 플러그인
+- [x] Phase 1.5 — 동적 로드맵 + MCP 마크다운 응답
+- [x] Phase 2 — Curated GitHub source
+- [x] Phase 2.1 — 카테고리 분류 + 메타 레포 제외
+- [x] Phase 2.2 — 디자인 리뉴얼 (브랜드, 모델 선택, End SSE)
+- [x] **Phase 2.3 — UX 다듬기 (사이드바 토글, 세션 인터럽트, 3-level 계층) ← 현재**
+- [ ] Phase 3 — TBD (아래 "다음에 고민할 것들" 참조)
 
-## License
+## 다음에 고민할 것들
+
+[docs/next-steps.md](docs/next-steps.md) 참조.
+
+## 라이선스
 
 MIT
