@@ -156,7 +156,11 @@ SPIRAL_CURATED_ORG=your-org
 
 저장 위치: `<vault>/spiral-buddy/`
 
-파일명: `<날짜>-<주제>-d<depth>.md`
+파일명: `<날짜>-<chapter-basename>-d<depth>.md`
+- 예: `2026-05-14-01-bean-creation-process-d1.md`
+- `chapter_id`의 basename을 활용해 짧고 깔끔하게
+- 같은 챕터 같은 날 두 번 학습하면 `-2`, `-3` suffix 자동 추가
+- 본문 첫 줄에 `# ${title}` H1 자동 삽입 — Obsidian preview/sidebar에서 제목 명확
 
 ```yaml
 ---
@@ -170,29 +174,13 @@ roadmap_id: "spring ecosystem/spring-core-deep-dive/transaction-mvcc"
 tags: ["transaction", "isolation", "acid"]
 summary: "트랜잭션의 4가지 속성과 isolation level이 실제 동시성 이슈에 어떻게 매핑되는지."
 related:
-  - "[[2026-05-01-mvcc-d1]]"
+  - "[[2026-05-01-01-mvcc-d1]]"
 generator: iq-spiral-buddy
 ---
 
+# ACID
+
 ## 한 줄 요약
-...
-
-## 핵심 개념
-...
-
-## 직관 / 비유
-...
-
-## 짚고 넘어간 예제
-...
-
-## 헷갈렸던 / 확인이 필요한 지점
-...
-
-## 이전 학습과의 연결
-...
-
-## 다음에 볼 것
 ...
 ```
 
@@ -294,6 +282,8 @@ generator: iq-spiral-buddy
 - [x] Phase 2.1 — 카테고리 분류 + 메타 레포 제외
 - [x] Phase 2.2 — 디자인 리뉴얼 (브랜드, 모델 선택, End SSE)
 - [x] **Phase 2.3 — UX 다듬기 (사이드바 토글, 세션 인터럽트, 3-level 계층) ← 현재**
+- [ ] (보류) Phase 3 — Notion 지원 (롤백됨, 추후 재논의)
+- [ ] (검토 중) 챕터 번호 정규화 — 챕터 번호 없는 레포의 자동 순서 부여
 - [ ] Phase 3 — TBD (아래 "다음에 고민할 것들" 참조)
 
 ## 다음에 고민할 것들

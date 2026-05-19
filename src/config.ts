@@ -13,16 +13,9 @@ export interface Config {
   apiKey: string;
   model: string;
   maxTokens: number;
-  /**
-   * 로드맵 root 디렉토리 (Local source).
-   * - SPIRAL_ROADMAP_ROOT (신규, 권장): root 아래의 모든 로드맵을 자동 탐지
-   * - SPIRAL_ROADMAP_PATH (legacy): 단일 로드맵 디렉토리. 그 부모가 root로 간주됨.
-   */
   roadmapRoot: string | null;
   pinnedRoadmapPath: string | null;
-  /** Curated source: GitHub 조직 이름. 비어있거나 disabled면 비활성. */
   curatedOrg: string | null;
-  /** GitHub API 인증 토큰 (선택) */
   githubToken: string | null;
   vaultPath: string | null;
   vaultName: string | null;

@@ -101,9 +101,30 @@ export async function writeNewNote(
   await fs.mkdir(spiralRoot, { recursive: true });
 
   const date = new Date().toISOString().slice(0, 10);
-  const slug = slugify(note.topic);
-  const fileName = `${date}-${slug}-d${note.depth}.md`;
+
+  // 파일명: chapter_id basename 우선 (Phase 3 개선분 유지 — 짧고 깔끔한 파일명)
+  const baseFromChapter = note.chapterId
+    ? path.basename(note.chapterId, ".md")
+    : null;
+  const slug = baseFromChapter ?? slugify(note.topic);
+
+  // 충돌 방지: suffix
+  let fileName = `${date}-${slug}-d${note.depth}.md`;
+  let counter = 2;
+  while (await fileExists(path.join(spiralRoot, fileName))) {
+    fileName = `${date}-${slug}-d${note.depth}-${counter}.md`;
+    counter++;
+    if (counter > 99) {
+      throw new Error(
+        `Cannot find unique file name for ${date}-${slug}-d${note.depth}`,
+      );
+    }
+  }
   const filePath = path.join(spiralRoot, fileName);
+
+  const relatedBasenames = note.relatedNotePaths.map((p) =>
+    path.basename(p, ".md"),
+  );
 
   const frontmatter = [
     "---",
@@ -116,8 +137,8 @@ export async function writeNewNote(
     note.roadmapId ? `roadmap_id: "${escapeYaml(note.roadmapId)}"` : null,
     `tags: [${note.tags.map((t) => `"${escapeYaml(t)}"`).join(", ")}]`,
     `summary: "${escapeYaml(note.summary)}"`,
-    note.relatedNotePaths.length
-      ? `related:\n${note.relatedNotePaths.map((p) => `  - "[[${path.basename(p, ".md")}]]"`).join("\n")}`
+    relatedBasenames.length
+      ? `related:\n${relatedBasenames.map((b) => `  - "[[${b}]]"`).join("\n")}`
       : null,
     "generator: iq-spiral-buddy",
     "---",
@@ -125,12 +146,22 @@ export async function writeNewNote(
     .filter(Boolean)
     .join("\n");
 
-  const content = `${frontmatter}\n\n${note.body}\n`;
+  // 본문 위에 H1 자동 추가 (Phase 3 개선분 유지)
+  const content = `${frontmatter}\n\n# ${note.topic}\n\n${note.body}\n`;
   await fs.writeFile(filePath, content, "utf-8");
 
   await updateIndex(spiralRoot, fileName, note);
 
   return filePath;
+}
+
+async function fileExists(p: string): Promise<boolean> {
+  try {
+    await fs.access(p);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function updateIndex(
