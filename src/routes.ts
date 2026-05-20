@@ -12,8 +12,11 @@ import {
 } from "./roadmap.js";
 import {
   listSpiralNotes,
+  listTrash,
+  moveNotesToTrash,
   noteBelongsToRoadmap,
   noteMatchesChapter,
+  restoreFromTrash,
   writeNewNote,
 } from "./vault.js";
 import { suggestNext } from "./spiral.js";
@@ -37,6 +40,7 @@ import {
 import {
   groupReposByCategory,
   categorizeLocalRoadmap,
+  getOrgCategories,
 } from "./categories.js";
 
 export function createApi(config: Config) {
@@ -184,9 +188,8 @@ export function createApi(config: Config) {
     }
     const notes = config.vaultPath ? await listSpiralNotes(config.vaultPath) : [];
 
-    return c.json(
-      await Promise.all(
-        roadmaps.map(async (r) => {
+    const enriched = await Promise.all(
+      roadmaps.map(async (r) => {
           const roadmapNotes = notes.filter((n) =>
             noteBelongsToRoadmap(n, { roadmapId: r.id, roadmapName: r.name }),
           );
@@ -196,6 +199,9 @@ export function createApi(config: Config) {
           const maxDepth = roadmapNotes.reduce(
             (m, n) => Math.max(m, n.depth),
             0,
+          );
+          const depths = [...new Set(roadmapNotes.map((n) => n.depth))].sort(
+            (a, b) => a - b,
           );
           const lastDate = roadmapNotes.reduce(
             (latest: string | null, n) =>
@@ -215,6 +221,7 @@ export function createApi(config: Config) {
             visitedChapters: visitedChapters.size,
             totalNotes: roadmapNotes.length,
             maxDepth,
+            depths,
             lastDate,
             category: category
               ? {
@@ -225,8 +232,24 @@ export function createApi(config: Config) {
               : null,
           };
         }),
-      ),
-    );
+      );
+
+    // 카테고리 정의 순서대로 stable sort (정의에 없는 건 끝으로).
+    // 같은 카테고리 안에서는 sortKey 순서 유지 (Array.sort는 stable).
+    const catDefs = config.curatedOrg
+      ? await getOrgCategories(config.curatedOrg)
+      : null;
+    if (catDefs) {
+      const catOrder = new Map<string, number>();
+      catDefs.forEach((c, i) => catOrder.set(c.name, i));
+      enriched.sort((a, b) => {
+        const ai = a.category ? catOrder.get(a.category.name) ?? Infinity : Infinity;
+        const bi = b.category ? catOrder.get(b.category.name) ?? Infinity : Infinity;
+        return ai - bi;
+      });
+    }
+
+    return c.json(enriched);
   });
 
   // ─────────────────────────────────────────────────────
@@ -362,16 +385,259 @@ export function createApi(config: Config) {
             !latest || n.date > latest ? n.date : latest,
           null,
         );
+        const depths = [...new Set(matchingNotes.map((n) => n.depth))].sort(
+          (a, b) => a - b,
+        );
+        // depth별 가장 최근 노트의 obsidian deep-link (같은 depth 여러 개면 최신만)
+        const noteLinks = depths
+          .map((d) => {
+            const sameDepth = matchingNotes
+              .filter((n) => n.depth === d)
+              .sort((a, b) => b.date.localeCompare(a.date));
+            const note = sameDepth[0];
+            if (!note) return null;
+            const url = obsidianUri(note.filePath);
+            if (!url) return null;
+            return { depth: d, url, date: note.date };
+          })
+          .filter((x): x is { depth: number; url: string; date: string } => !!x);
         return {
           id: ch.id,
           title: ch.title,
           order: ch.order,
           visitCount: matchingNotes.length,
           maxDepth,
+          depths,
+          noteLinks,
           lastDate,
         };
       }),
     });
+  });
+
+  // ─────────────────────────────────────────────────────
+  // 3a. 검색 — 로드맵 + 노트 + 매칭된 로드맵의 챕터
+  // ─────────────────────────────────────────────────────
+
+  app.get("/search", async (c) => {
+    const raw = (c.req.query("q") ?? "").trim();
+    if (raw.length < 2) {
+      return c.json({ roadmaps: [], chapters: [], notes: [] });
+    }
+    const q = raw.toLowerCase();
+
+    const roadmaps = await getInstalledRoadmaps();
+    const notes = config.vaultPath
+      ? await listSpiralNotes(config.vaultPath)
+      : [];
+
+    // 1) 로드맵 매칭 (name, id)
+    const roadmapMatches = roadmaps
+      .filter(
+        (r) =>
+          r.name.toLowerCase().includes(q) ||
+          r.id.toLowerCase().includes(q),
+      )
+      .slice(0, 15)
+      .map((r) => ({
+        id: r.id,
+        name: r.name,
+        path: r.id,
+        source: r.source ?? "local",
+      }));
+
+    // 2) 노트 매칭 (title, topic, body 첫 1000자)
+    const noteMatches = notes
+      .filter((n) => {
+        const head = n.body.slice(0, 1000).toLowerCase();
+        return (
+          n.title.toLowerCase().includes(q) ||
+          n.topic.toLowerCase().includes(q) ||
+          head.includes(q)
+        );
+      })
+      .slice(0, 10)
+      .map((n) => ({
+        title: n.title,
+        topic: n.topic,
+        depth: n.depth,
+        date: n.date,
+        chapterId: n.chapterId,
+        roadmapId: n.roadmapId,
+        roadmapName: n.roadmapName,
+        obsidianUrl: obsidianUri(n.filePath),
+      }));
+
+    // 3) 챕터 매칭 — 매칭된 로드맵 + 노트가 있는 로드맵 안에서만 (성능)
+    const candidateRoadmaps = new Map<string, Roadmap>();
+    for (const r of roadmapMatches.map((rm) => roadmaps.find((r2) => r2.id === rm.id))) {
+      if (r) candidateRoadmaps.set(r.id, r);
+    }
+    for (const n of noteMatches) {
+      if (n.roadmapId) {
+        const r = roadmaps.find((r2) => r2.id === n.roadmapId);
+        if (r) candidateRoadmaps.set(r.id, r);
+      }
+    }
+    const chapterMatches: Array<{
+      roadmapId: string;
+      roadmapName: string;
+      chapterId: string;
+      title: string;
+    }> = [];
+    for (const r of candidateRoadmaps.values()) {
+      const chapters = await loadRoadmapChapters(r);
+      for (const ch of chapters) {
+        if (
+          ch.title.toLowerCase().includes(q) ||
+          ch.id.toLowerCase().includes(q)
+        ) {
+          chapterMatches.push({
+            roadmapId: r.id,
+            roadmapName: r.name,
+            chapterId: ch.id,
+            title: ch.title,
+          });
+          if (chapterMatches.length >= 15) break;
+        }
+      }
+      if (chapterMatches.length >= 15) break;
+    }
+
+    return c.json({
+      roadmaps: roadmapMatches,
+      chapters: chapterMatches,
+      notes: noteMatches,
+    });
+  });
+
+  // ─────────────────────────────────────────────────────
+  // 3b. 노트 삭제 (챕터 전체 or 특정 depth만, vault의 .trash/로 이동)
+  // ─────────────────────────────────────────────────────
+
+  app.delete("/notes", async (c) => {
+    if (!config.vaultPath) {
+      return c.json({ error: "No vault configured" }, 400);
+    }
+    const body = await c.req
+      .json<{
+        roadmapId: string;
+        chapterId?: string | null;
+        depth?: number | null;
+      }>()
+      .catch(() => null);
+    if (!body?.roadmapId) {
+      return c.json({ error: "roadmapId required" }, 400);
+    }
+
+    const roadmap = await resolveRoadmap(body.roadmapId);
+    if (!roadmap) {
+      return c.json({ error: "Roadmap not found" }, 404);
+    }
+
+    const all = await listSpiralNotes(config.vaultPath);
+    const target = all.filter((n) => {
+      // chapterId 있으면 챕터 단위, 없으면 roadmap 전체
+      if (body.chapterId) {
+        if (
+          !noteMatchesChapter(n, {
+            roadmapId: roadmap.id,
+            roadmapName: roadmap.name,
+            chapterId: body.chapterId,
+          })
+        ) {
+          return false;
+        }
+      } else {
+        if (
+          !noteBelongsToRoadmap(n, {
+            roadmapId: roadmap.id,
+            roadmapName: roadmap.name,
+          })
+        ) {
+          return false;
+        }
+      }
+      if (body.depth !== undefined && body.depth !== null) {
+        return n.depth === body.depth;
+      }
+      return true;
+    });
+
+    const moved = await moveNotesToTrash(config.vaultPath, target);
+    return c.json({ deleted: moved.length });
+  });
+
+  // ─────────────────────────────────────────────────────
+  // 3d. 학습 활동 — 날짜별 노트 수 (contribution graph용)
+  // ─────────────────────────────────────────────────────
+
+  app.get("/activity", async (c) => {
+    if (!config.vaultPath) {
+      return c.json({ days: 365, byDate: {}, total: 0 });
+    }
+    const days = Math.max(
+      1,
+      Math.min(730, Number(c.req.query("days") ?? 365)),
+    );
+    const notes = await listSpiralNotes(config.vaultPath);
+    const cutoffMs = Date.now() - days * 24 * 60 * 60 * 1000;
+    const byDate: Record<string, number> = {};
+    for (const n of notes) {
+      if (!n.date) continue;
+      // date는 "YYYY-MM-DD" 형식
+      const t = Date.parse(n.date);
+      if (Number.isNaN(t) || t < cutoffMs) continue;
+      byDate[n.date] = (byDate[n.date] ?? 0) + 1;
+    }
+    // depth별 / 카테고리별 통계도 함께
+    const byDepth: Record<number, number> = {};
+    for (const n of notes) {
+      byDepth[n.depth] = (byDepth[n.depth] ?? 0) + 1;
+    }
+    return c.json({
+      days,
+      byDate,
+      byDepth,
+      total: notes.length,
+    });
+  });
+
+  // ─────────────────────────────────────────────────────
+  // 3c. 휴지통 — 목록 + 복구
+  // ─────────────────────────────────────────────────────
+
+  app.get("/trash", async (c) => {
+    if (!config.vaultPath) {
+      return c.json({ error: "No vault configured" }, 400);
+    }
+    const entries = await listTrash(config.vaultPath);
+    return c.json(entries);
+  });
+
+  app.post("/trash/restore", async (c) => {
+    if (!config.vaultPath) {
+      return c.json({ error: "No vault configured" }, 400);
+    }
+    const body = await c.req
+      .json<{ fileName: string }>()
+      .catch(() => null);
+    if (!body?.fileName) {
+      return c.json({ error: "fileName required" }, 400);
+    }
+    // 보안: fileName에 path traversal 차단
+    if (body.fileName.includes("/") || body.fileName.includes("\\")) {
+      return c.json({ error: "invalid fileName" }, 400);
+    }
+    try {
+      const restored = await restoreFromTrash(config.vaultPath, body.fileName);
+      return c.json({ restoredTo: restored });
+    } catch (err) {
+      return c.json(
+        { error: err instanceof Error ? err.message : "restore failed" },
+        500,
+      );
+    }
   });
 
   // ─────────────────────────────────────────────────────

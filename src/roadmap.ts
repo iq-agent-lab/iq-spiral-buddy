@@ -23,6 +23,8 @@ export interface Roadmap {
   chapterCount: number;
   /** 소스 종류 (Phase 2). 명시 안 됨 = local (backward compat) */
   source?: "local" | "curated";
+  /** 정렬 키. 부모 컨테이너 README의 학습 순서 + 이름. discoverRoadmaps 내부에서 채움. */
+  sortKey?: string;
 }
 
 export interface Chapter {
@@ -53,9 +55,71 @@ export async function discoverRoadmaps(rootPath: string): Promise<Roadmap[]> {
   if (!stat?.isDirectory()) return [];
 
   const roadmaps: Roadmap[] = [];
-  await walk(rootPath, rootPath, 0, roadmaps);
-  roadmaps.sort((a, b) => a.id.localeCompare(b.id));
+  await walk(rootPath, rootPath, 0, roadmaps, "");
+  roadmaps.sort((a, b) =>
+    (a.sortKey ?? a.id).localeCompare(b.sortKey ?? b.id, undefined, {
+      numeric: true,
+      sensitivity: "base",
+    }),
+  );
   return roadmaps;
+}
+
+const UNORDERED_PREFIX = "zzz9__";
+
+function buildChildSortKey(
+  parentSortPrefix: string,
+  childName: string,
+  orderIdx: number | undefined,
+): string {
+  const segment =
+    orderIdx === undefined
+      ? `${UNORDERED_PREFIX}${childName}`
+      : `${String(orderIdx).padStart(4, "0")}__${childName}`;
+  return parentSortPrefix + segment;
+}
+
+/**
+ * 컨테이너 디렉토리의 README.md를 읽어, 그 안의
+ * `[...](./<child>/...md)` 또는 `[...](./<child>/...md#...)` 링크의
+ * 첫 등장 순서를 child name → index 맵으로 반환한다.
+ *
+ * 매칭 안 되거나 README가 없으면 빈 맵.
+ */
+async function readContainerChildOrder(
+  dir: string,
+): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  const candidates = ["README.md", "readme.md", "Readme.md"];
+  let readmePath: string | null = null;
+  for (const name of candidates) {
+    const p = path.join(dir, name);
+    if (fsSync.existsSync(p)) {
+      readmePath = p;
+      break;
+    }
+  }
+  if (!readmePath) return out;
+
+  let content: string;
+  try {
+    content = await fs.readFile(readmePath, "utf-8");
+  } catch {
+    return out;
+  }
+
+  // `](./<child>/...md)` 또는 `](./<child>/...md#anchor)` — `./` prefix 강제
+  // <child>는 슬래시/공백/괄호 없는 디렉토리 이름
+  const regex = /\]\(\.\/([^/)\s]+)\/[^)]*\.md(?:#[^)]*)?\)/g;
+  let idx = 0;
+  let m: RegExpExecArray | null;
+  while ((m = regex.exec(content)) !== null) {
+    const child = m[1]!;
+    if (!out.has(child)) {
+      out.set(child, idx++);
+    }
+  }
+  return out;
 }
 
 async function walk(
@@ -63,6 +127,7 @@ async function walk(
   currentDir: string,
   depth: number,
   out: Roadmap[],
+  parentSortPrefix: string,
 ): Promise<void> {
   if (depth > MAX_DEPTH) return;
 
@@ -91,16 +156,29 @@ async function walk(
       name: path.basename(currentDir),
       absolutePath: currentDir,
       chapterCount: directMdFiles.length,
+      sortKey: parentSortPrefix + path.basename(currentDir),
     });
     return;
   }
+
+  // 컨테이너 — README에서 child 순서 추출
+  const childOrder = await readContainerChildOrder(currentDir);
 
   // 로드맵이 아니면 하위 디렉토리들 탐색
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
     if (entry.name.startsWith(".")) continue;
     if (entry.name === "node_modules") continue;
-    await walk(rootPath, path.join(currentDir, entry.name), depth + 1, out);
+    const childPrefix =
+      buildChildSortKey(parentSortPrefix, entry.name, childOrder.get(entry.name)) +
+      "/";
+    await walk(
+      rootPath,
+      path.join(currentDir, entry.name),
+      depth + 1,
+      out,
+      childPrefix,
+    );
   }
 }
 

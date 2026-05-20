@@ -25,6 +25,7 @@ import {
 } from "./roadmap.js";
 import {
   listSpiralNotes,
+  moveNotesToTrash,
   noteBelongsToRoadmap,
   noteMatchesChapter,
   writeNewNote,
@@ -689,6 +690,211 @@ async function main() {
       lines.push(
         `다음 spiral 세션 시 이 노트가 depth ${depth + 1}의 prior context로 자동 포함됩니다.`,
       );
+
+      return { content: [{ type: "text", text: lines.join("\n") }] };
+    },
+  );
+
+  // ─────────────────────────────────────────────────────
+  // 7. spiral_delete_notes — 챕터 또는 로드맵 노트를 .trash로 이동
+  // ─────────────────────────────────────────────────────
+  server.registerTool(
+    "spiral_delete_notes",
+    {
+      title: "학습 노트 삭제 (vault의 .trash/로 이동, 복구 가능)",
+      description:
+        "특정 챕터 또는 로드맵의 노트를 vault의 spiral-buddy/.trash/로 이동합니다. fs.unlink가 아니라 rename이라 사용자가 직접 복구 가능합니다. " +
+        "범위 결정:\n" +
+        "- chapter_id 있으면: 그 챕터만\n" +
+        "- chapter_id 없으면: roadmap의 모든 챕터\n" +
+        "- depth 있으면: 해당 depth만 추가 필터\n\n" +
+        "위험한 액션이므로 사용자가 명시적으로 요청한 경우에만 사용하세요. " +
+        "삭제 전에 어떤 노트가 영향받는지 spiral_list_notes로 확인을 권장합니다.",
+      inputSchema: {
+        roadmap_id: z.string().describe("대상 로드맵 id"),
+        chapter_id: z
+          .string()
+          .optional()
+          .describe("특정 챕터만 삭제할 경우 그 id (생략 시 로드맵 전체)"),
+        depth: z
+          .number()
+          .int()
+          .min(1)
+          .optional()
+          .describe("특정 depth만 삭제 (예: 2면 d2 노트만)"),
+      },
+    },
+    async ({ roadmap_id, chapter_id, depth }) => {
+      const roadmap = await resolveRoadmapByIdOrName(roadmap_id);
+      if (!roadmap) {
+        return {
+          content: [
+            { type: "text", text: `로드맵을 찾을 수 없습니다: ${roadmap_id}` },
+          ],
+          isError: true,
+        };
+      }
+      const all = await listSpiralNotes(vaultPath);
+      const target = all.filter((n) => {
+        if (chapter_id) {
+          if (
+            !noteMatchesChapter(n, {
+              roadmapId: roadmap.id,
+              roadmapName: roadmap.name,
+              chapterId: chapter_id,
+            })
+          ) {
+            return false;
+          }
+        } else {
+          if (
+            !noteBelongsToRoadmap(n, {
+              roadmapId: roadmap.id,
+              roadmapName: roadmap.name,
+            })
+          ) {
+            return false;
+          }
+        }
+        if (depth !== undefined) return n.depth === depth;
+        return true;
+      });
+
+      if (target.length === 0) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `삭제 대상 노트가 없습니다 (roadmap=${roadmap.name}${chapter_id ? `, chapter=${chapter_id}` : ""}${depth !== undefined ? `, depth=${depth}` : ""}).`,
+            },
+          ],
+        };
+      }
+
+      const moved = await moveNotesToTrash(vaultPath, target);
+      const lines: string[] = [];
+      lines.push(`✓ **${moved.length}개 노트를 .trash/로 이동했습니다**`);
+      lines.push("");
+      lines.push(`- **로드맵**: ${roadmap.name}`);
+      if (chapter_id) lines.push(`- **챕터**: \`${chapter_id}\``);
+      if (depth !== undefined) lines.push(`- **depth 필터**: d${depth}`);
+      lines.push("");
+      lines.push("복구하려면 웹앱(사이드바 휴지통) 또는 vault에서 직접 옮기세요. mtime 30일 초과 시 영구 삭제됩니다.");
+      return { content: [{ type: "text", text: lines.join("\n") }] };
+    },
+  );
+
+  // ─────────────────────────────────────────────────────
+  // 8. spiral_search — 로드맵·챕터·노트 통합 검색
+  // ─────────────────────────────────────────────────────
+  server.registerTool(
+    "spiral_search",
+    {
+      title: "로드맵·챕터·노트 통합 검색 (substring)",
+      description:
+        "키워드로 로드맵 이름, 챕터 제목, 노트 본문을 검색합니다. " +
+        "사용자가 '어디서 X 봤지?' 또는 '이 주제 관련 자료 찾아줘'라고 할 때 사용하세요. " +
+        "대소문자 무시. 결과는 카테고리별 마크다운 표로 반환됩니다. " +
+        "각 항목의 id는 후속 도구(spiral_get_chapter_context 등)의 인자로 사용 가능합니다.",
+      inputSchema: {
+        query: z.string().min(2).describe("검색어 (최소 2글자)"),
+      },
+    },
+    async ({ query }) => {
+      const q = query.trim().toLowerCase();
+      if (q.length < 2) {
+        return {
+          content: [{ type: "text", text: "검색어는 최소 2글자 이상이어야 합니다." }],
+          isError: true,
+        };
+      }
+      const roadmaps = await getInstalledRoadmaps();
+      const notes = await listSpiralNotes(vaultPath);
+
+      const rmMatches = roadmaps.filter(
+        (r) =>
+          r.name.toLowerCase().includes(q) || r.id.toLowerCase().includes(q),
+      );
+      const noteMatches = notes.filter((n) => {
+        const head = n.body.slice(0, 1000).toLowerCase();
+        return (
+          n.title.toLowerCase().includes(q) ||
+          n.topic.toLowerCase().includes(q) ||
+          head.includes(q)
+        );
+      });
+      // 챕터 검색 — 매칭된 로드맵 + 노트의 로드맵 안만 (성능)
+      const candidateMap = new Map<string, Roadmap>();
+      for (const r of rmMatches) candidateMap.set(r.id, r);
+      for (const n of noteMatches) {
+        if (n.roadmapId) {
+          const r = roadmaps.find((x) => x.id === n.roadmapId);
+          if (r) candidateMap.set(r.id, r);
+        }
+      }
+      const chapterMatches: Array<{
+        roadmapName: string;
+        chapterId: string;
+        title: string;
+      }> = [];
+      for (const r of candidateMap.values()) {
+        const chapters = await loadRoadmapChapters(r);
+        for (const ch of chapters) {
+          if (
+            ch.title.toLowerCase().includes(q) ||
+            ch.id.toLowerCase().includes(q)
+          ) {
+            chapterMatches.push({
+              roadmapName: r.name,
+              chapterId: ch.id,
+              title: ch.title,
+            });
+            if (chapterMatches.length >= 20) break;
+          }
+        }
+        if (chapterMatches.length >= 20) break;
+      }
+
+      const lines: string[] = [];
+      lines.push(`# 검색 결과 — \`${query}\``);
+      lines.push("");
+      lines.push(
+        `로드맵 ${rmMatches.length}개 · 챕터 ${chapterMatches.length}개 · 노트 ${noteMatches.length}개`,
+      );
+      lines.push("");
+
+      if (rmMatches.length > 0) {
+        lines.push("## 📕 로드맵");
+        lines.push("| 이름 | id |");
+        lines.push("|---|---|");
+        for (const r of rmMatches.slice(0, 15)) {
+          lines.push(`| ${r.name} | \`${r.id}\` |`);
+        }
+        lines.push("");
+      }
+      if (chapterMatches.length > 0) {
+        lines.push("## 🔖 챕터");
+        lines.push("| 제목 | 로드맵 | chapter_id |");
+        lines.push("|---|---|---|");
+        for (const c of chapterMatches) {
+          lines.push(`| ${c.title} | ${c.roadmapName} | \`${c.chapterId}\` |`);
+        }
+        lines.push("");
+      }
+      if (noteMatches.length > 0) {
+        lines.push("## 📝 노트");
+        lines.push("| 제목 | depth | 날짜 | 로드맵 | 챕터 |");
+        lines.push("|---|---:|---|---|---|");
+        for (const n of noteMatches.slice(0, 15)) {
+          lines.push(
+            `| ${n.title || n.topic} | d${n.depth} | ${n.date} | ${n.roadmapName ?? "?"} | \`${n.chapterId ?? "?"}\` |`,
+          );
+        }
+        lines.push("");
+      }
+      if (rmMatches.length === 0 && chapterMatches.length === 0 && noteMatches.length === 0) {
+        lines.push("_매칭 없음._");
+      }
 
       return { content: [{ type: "text", text: lines.join("\n") }] };
     },

@@ -77,6 +77,20 @@ function cacheEls() {
   els.quizBtn = $("quiz-btn");
   els.form = $("input-form");
   els.statusBar = $("status-bar");
+  els.trashOpenBtn = $("trash-open-btn");
+  els.trashCount = $("trash-count");
+  els.trashModal = $("trash-modal");
+  els.trashModalClose = $("trash-modal-close");
+  els.trashList = $("trash-list");
+  els.searchModal = $("search-modal");
+  els.searchInput = $("search-input");
+  els.searchResults = $("search-results");
+  els.activityOpenBtn = $("activity-open-btn");
+  els.activityModal = $("activity-modal");
+  els.activityModalClose = $("activity-modal-close");
+  els.activitySummary = $("activity-summary");
+  els.activityGrid = $("activity-grid");
+  els.activityMonthLabels = $("activity-month-labels");
 }
 
 // ──────────────────────────────────────────────────────────
@@ -138,6 +152,115 @@ function wireEvents() {
       setSidebarCollapsed(!isCollapsed);
     }
   });
+
+  // 사이드바 너비 조절 (드래그 핸들)
+  const SIDEBAR_WIDTH_KEY = "spiral-buddy:sidebar-width";
+  const SIDEBAR_MIN = 200;
+  const SIDEBAR_MAX = 600;
+  const savedWidth = localStorage.getItem(SIDEBAR_WIDTH_KEY);
+  if (savedWidth) {
+    const w = Math.max(SIDEBAR_MIN, Math.min(SIDEBAR_MAX, parseInt(savedWidth, 10) || 280));
+    document.body.style.setProperty("--sidebar-w", `${w}px`);
+  }
+  const resizer = document.getElementById("sidebar-resizer");
+  if (resizer) {
+    let dragging = false;
+    resizer.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      dragging = true;
+      document.body.classList.add("sidebar-resizing");
+    });
+    document.addEventListener("mousemove", (e) => {
+      if (!dragging) return;
+      const w = Math.max(SIDEBAR_MIN, Math.min(SIDEBAR_MAX, e.clientX));
+      document.body.style.setProperty("--sidebar-w", `${w}px`);
+    });
+    document.addEventListener("mouseup", () => {
+      if (!dragging) return;
+      dragging = false;
+      document.body.classList.remove("sidebar-resizing");
+      const w = document.body.style.getPropertyValue("--sidebar-w");
+      if (w) localStorage.setItem(SIDEBAR_WIDTH_KEY, w.trim());
+    });
+    // 더블클릭으로 기본 너비 복원
+    resizer.addEventListener("dblclick", () => {
+      document.body.style.removeProperty("--sidebar-w");
+      localStorage.removeItem(SIDEBAR_WIDTH_KEY);
+    });
+  }
+
+  // 휴지통
+  if (els.trashOpenBtn) {
+    els.trashOpenBtn.addEventListener("click", openTrashModal);
+  }
+  if (els.trashModalClose) {
+    els.trashModalClose.addEventListener("click", closeTrashModal);
+  }
+  if (els.trashModal) {
+    els.trashModal.addEventListener("click", (e) => {
+      // 오버레이 자체 클릭 시 닫기 (내부 클릭은 무시)
+      if (e.target === els.trashModal) closeTrashModal();
+    });
+  }
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !els.trashModal?.classList.contains("hidden")) {
+      closeTrashModal();
+    }
+  });
+  // 백그라운드로 휴지통 개수 폴링은 안 함 — 사이드바 갱신마다 같이 fetch
+  refreshTrashBadge();
+
+  // 학습 활동 캘린더
+  if (els.activityOpenBtn) {
+    els.activityOpenBtn.addEventListener("click", openActivityModal);
+  }
+  if (els.activityModalClose) {
+    els.activityModalClose.addEventListener("click", closeActivityModal);
+  }
+  if (els.activityModal) {
+    els.activityModal.addEventListener("click", (e) => {
+      if (e.target === els.activityModal) closeActivityModal();
+    });
+  }
+
+  // Cmd/Ctrl+K — 검색 모달
+  document.addEventListener("keydown", (e) => {
+    if ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "K")) {
+      e.preventDefault();
+      openSearchModal();
+    }
+    if (e.key === "Escape" && els.activityModal && !els.activityModal.classList.contains("hidden")) {
+      closeActivityModal();
+    }
+  });
+  if (els.searchModal) {
+    els.searchModal.addEventListener("click", (e) => {
+      if (e.target === els.searchModal) closeSearchModal();
+    });
+  }
+  if (els.searchInput) {
+    let debounceTimer = null;
+    els.searchInput.addEventListener("input", () => {
+      clearTimeout(debounceTimer);
+      const q = els.searchInput.value;
+      debounceTimer = setTimeout(() => runSearch(q), 150);
+    });
+    els.searchInput.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        closeSearchModal();
+      } else if (e.key === "ArrowDown") {
+        e.preventDefault();
+        moveSearchSelection(1);
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        moveSearchSelection(-1);
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        activateSearchSelection();
+      }
+    });
+  }
 
   // 모델 셀렉터 — 세션 중에는 비활성화
   els.modelSelect.addEventListener("change", (e) => {
@@ -209,16 +332,22 @@ async function loadInitial() {
       return;
     }
 
-    // 마지막으로 사용한 로드맵 복원
+    // 마지막으로 사용한 로드맵 복원 → 없으면 가장 최근 학습한 로드맵 → 그 외 첫 로드맵
     const lastId = localStorage.getItem(LS_KEY);
     const restored = lastId && state.roadmaps.find((r) => r.id === lastId);
-    state.activeRoadmapId = restored
-      ? restored.id
-      : state.roadmaps[0]?.id ?? null;
+    if (restored) {
+      state.activeRoadmapId = restored.id;
+    } else {
+      const mostRecent = state.roadmaps
+        .filter((r) => r.lastDate)
+        .sort((a, b) => (b.lastDate ?? "").localeCompare(a.lastDate ?? ""))[0];
+      state.activeRoadmapId = mostRecent?.id ?? state.roadmaps[0]?.id ?? null;
+    }
 
     renderRoadmapSelector();
     if (state.activeRoadmapId) {
       await loadRoadmapData();
+      scrollToRecentChapter();
     } else {
       // 설치된 로드맵 없으면 placeholder + curated 가능 목록 자동 로드
       els.chapterList.innerHTML = `<li class="empty">로드맵 설치 안 됨. 위 셀렉터에서 "받기 가능" 펼쳐 큐레이션 로드맵을 받으세요.</li>`;
@@ -461,29 +590,42 @@ function renderRoadmapSelector() {
 
           let repoBody = "";
           if (repoExpanded && !isSingleFlat) {
-            // sub-roadmap 목록 렌더링
-            const sortedSubs = [...roadmaps].sort((a, b) => {
-              const subA = parseHierarchy(a).sub ?? a.name;
-              const subB = parseHierarchy(b).sub ?? b.name;
-              return subA.localeCompare(subB);
-            });
-            repoBody = sortedSubs
-              .map((r) => {
+            // sub-roadmap 목록 렌더링.
+            // 서버가 컨테이너 README의 학습 순서대로 정렬해서 보내준다 (roadmap.ts sortKey).
+            // 여기서 다시 알파벳 정렬하면 그 순서가 깨지므로 그대로 사용.
+            repoBody = roadmaps
+              .map((r, idx) => {
                 const isActive = r.id === state.activeRoadmapId;
                 const { sub } = parseHierarchy(r);
                 const displayName = sub ?? r.name;
                 const lastDate = r.lastDate ?? "—";
-                const depthBadge =
-                  r.maxDepth > 0
-                    ? `<span class="depth-pill">d${r.maxDepth}</span>`
-                    : "";
+                const visited = (r.maxDepth ?? 0) > 0;
+                const depthBadge = visited
+                  ? `<span class="depth-pill deletable" data-roadmap-delete="${escapeAttr(r.id)}" title="클릭하여 이 로드맵의 노트 삭제">d${r.maxDepth}</span>`
+                  : "";
+                const trashBtn = visited
+                  ? `<span class="chapter-delete-btn" data-roadmap-delete="${escapeAttr(r.id)}" role="button" tabindex="0" title="이 로드맵의 노트 삭제">
+                      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
+                        <path d="M10 11v6M14 11v6"></path>
+                        <path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"></path>
+                      </svg>
+                    </span>`
+                  : "";
+                const pct =
+                  r.chapterCount > 0
+                    ? Math.min(100, Math.round((r.visitedChapters / r.chapterCount) * 100))
+                    : 0;
                 return `
-                  <button class="roadmap-item sub-roadmap-item ${isActive ? "active" : ""}" data-id="${escapeAttr(r.id)}">
-                    <div class="roadmap-item-name">${escapeHtml(displayName)}</div>
+                  <button class="roadmap-item sub-roadmap-item ${isActive ? "active" : ""}" data-id="${escapeAttr(r.id)}" data-roadmap-title="${escapeAttr(displayName)}" data-depths="${escapeAttr((r.depths ?? []).join(","))}">
+                    <div class="roadmap-item-name"><span class="sub-roadmap-index">${idx + 1}.</span> ${escapeHtml(displayName)}</div>
+                    <div class="progress-mini" aria-hidden="true"><div class="progress-fill" style="width:${pct}%"></div></div>
                     <div class="roadmap-item-meta">
                       ${depthBadge}
                       <span class="roadmap-item-progress">${r.visitedChapters}/${r.chapterCount}</span>
                       <span class="roadmap-item-date">${escapeHtml(lastDate)}</span>
+                      ${trashBtn}
                     </div>
                   </button>
                 `;
@@ -631,7 +773,26 @@ function renderRoadmapSelector() {
 
   // wire installed roadmap items
   els.roadmapList.querySelectorAll(".roadmap-item").forEach((btn) => {
-    btn.addEventListener("click", () => {
+    btn.addEventListener("click", (e) => {
+      // 휴지통 또는 d배지 클릭은 삭제 팝오버로 분기 (sub-roadmap 전용)
+      const trigger = e.target.closest("[data-roadmap-delete]");
+      if (trigger) {
+        e.preventDefault();
+        e.stopPropagation();
+        const id = trigger.getAttribute("data-roadmap-delete");
+        const title = btn.dataset.roadmapTitle ?? id;
+        const depths = (btn.dataset.depths ?? "")
+          .split(",")
+          .filter(Boolean)
+          .map((s) => Number(s));
+        openDeletePopover(trigger, {
+          kind: "roadmap",
+          roadmapId: id,
+          title,
+          depths,
+        });
+        return;
+      }
       const id = btn.dataset.id;
       if (id === state.activeRoadmapId) {
         els.roadmapList.classList.add("hidden");
@@ -926,6 +1087,28 @@ async function switchRoadmap(roadmapId) {
   els.roadmapList.classList.add("hidden");
   renderRoadmapSelector();
   await loadRoadmapData();
+  scrollToRecentChapter();
+}
+
+/**
+ * 가장 최근 학습한 챕터(lastDate 기준)를 viewport 중앙으로 스크롤.
+ * 없으면 아무것도 하지 않음.
+ */
+function scrollToRecentChapter() {
+  if (!Array.isArray(state.chapters) || state.chapters.length === 0) return;
+  const visited = state.chapters
+    .filter((c) => c.lastDate)
+    .sort((a, b) => (b.lastDate ?? "").localeCompare(a.lastDate ?? ""));
+  const target = visited[0];
+  if (!target) return;
+  requestAnimationFrame(() => {
+    const el = els.chapterList.querySelector(
+      `button[data-id="${CSS.escape(target.id)}"]`,
+    );
+    if (el && typeof el.scrollIntoView === "function") {
+      el.scrollIntoView({ block: "center", behavior: "smooth" });
+    }
+  });
 }
 
 function renderChapters() {
@@ -939,22 +1122,626 @@ function renderChapters() {
     li.className = "chapter-item";
     const visited = (ch.maxDepth ?? 0) > 0;
     const badge = visited
-      ? `<span class="chapter-depth-pill" title="마지막 학습: ${escapeAttr(ch.lastDate ?? "")} · 총 ${ch.visitCount}회">d${ch.maxDepth}</span>`
+      ? `<span class="chapter-depth-pill deletable" data-chapter-delete="${escapeAttr(ch.id)}" title="클릭하여 노트 삭제 · 마지막 학습: ${escapeAttr(ch.lastDate ?? "")} · 총 ${ch.visitCount}회">d${ch.maxDepth}</span>`
       : `<span class="chapter-depth-pill empty"></span>`;
+    // visited 챕터에 노트 열기 + 삭제 트리거 (hover 시 등장)
+    const openBtn = visited
+      ? `<span class="chapter-open-btn" data-chapter-open="${escapeAttr(ch.id)}" role="button" tabindex="0" title="기존 노트 열기 (Obsidian)">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+            <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+          </svg>
+        </span>`
+      : "";
+    const trashBtn = visited
+      ? `<span class="chapter-delete-btn" data-chapter-delete="${escapeAttr(ch.id)}" role="button" tabindex="0" title="이 챕터의 노트 삭제">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
+            <path d="M10 11v6M14 11v6"></path>
+            <path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"></path>
+          </svg>
+        </span>`
+      : "";
     li.innerHTML = `
       <button class="chapter-btn ${visited ? "visited" : ""}" data-id="${escapeAttr(ch.id)}">
         <span class="num">${i + 1}.</span>
         <span class="title">${escapeHtml(ch.title)}</span>
         ${badge}
+        ${openBtn}
+        ${trashBtn}
       </button>
     `;
-    li.querySelector("button").addEventListener("click", async () => {
+    const btn = li.querySelector("button");
+    btn.addEventListener("click", async (e) => {
+      // 노트 열기 (📖) 클릭은 Obsidian 노트 열기로 분기
+      const openTrigger = e.target.closest("[data-chapter-open]");
+      if (openTrigger) {
+        e.preventDefault();
+        e.stopPropagation();
+        openChapterNotePopover(openTrigger, ch);
+        return;
+      }
+      // depth 배지 또는 휴지통 클릭은 삭제 팝오버로 분기
+      const trigger = e.target.closest("[data-chapter-delete]");
+      if (trigger) {
+        e.preventDefault();
+        e.stopPropagation();
+        openDeletePopover(trigger, {
+          kind: "chapter",
+          roadmapId: state.activeRoadmapId,
+          chapterId: ch.id,
+          title: ch.title,
+          depths: ch.depths,
+        });
+        return;
+      }
       const decision = await handleSessionInterruption();
       if (decision === "cancel") return;
       startSession(ch.id);
     });
     els.chapterList.appendChild(li);
   });
+}
+
+function openChapterNotePopover(anchorEl, chapter) {
+  const links = Array.isArray(chapter.noteLinks) ? chapter.noteLinks : [];
+  if (links.length === 0) return;
+  // 1개면 바로 열기
+  if (links.length === 1) {
+    window.location.href = links[0].url;
+    return;
+  }
+  // 여러 개면 팝오버
+  closeDeletePopover();
+  const pop = document.createElement("div");
+  pop.className = "delete-popover";
+  const header = `<div class="delete-popover-title">노트 열기 — ${escapeHtml(chapter.title)}</div>`;
+  const items = links
+    .map(
+      (l) =>
+        `<a class="delete-popover-item" href="${escapeAttr(l.url)}">📖 d${l.depth} 노트 (${escapeHtml(l.date)})</a>`,
+    )
+    .join("");
+  const hint = `<div class="delete-popover-hint">Obsidian에서 열림</div>`;
+  pop.innerHTML = header + items + hint;
+  const rect = anchorEl.getBoundingClientRect();
+  pop.style.position = "fixed";
+  pop.style.top = `${rect.bottom + 4}px`;
+  pop.style.left = `${Math.min(rect.left, window.innerWidth - 240)}px`;
+  document.body.appendChild(pop);
+  _activePopover = pop;
+  pop.addEventListener("click", (e) => {
+    if (e.target.closest("a")) closeDeletePopover();
+  });
+  setTimeout(() => {
+    document.addEventListener("mousedown", _onOutsideClick, true);
+    document.addEventListener("keydown", _onPopoverKey, true);
+  }, 0);
+}
+
+// ──────────────────────────────────────────────────────────
+// 휴지통
+// ──────────────────────────────────────────────────────────
+
+async function refreshTrashBadge() {
+  try {
+    const list = await fetch("/api/trash").then((r) => r.json());
+    const count = Array.isArray(list) ? list.length : 0;
+    if (els.trashCount) els.trashCount.textContent = String(count);
+    if (els.trashOpenBtn) {
+      els.trashOpenBtn.classList.toggle("hidden", count === 0);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+async function openTrashModal() {
+  if (!els.trashModal) return;
+  els.trashModal.classList.remove("hidden");
+  els.trashModal.setAttribute("aria-hidden", "false");
+  els.trashList.innerHTML = `<li class="empty">loading…</li>`;
+  try {
+    const list = await fetch("/api/trash").then((r) => r.json());
+    renderTrashList(Array.isArray(list) ? list : []);
+  } catch (err) {
+    els.trashList.innerHTML = `<li class="empty">목록 로드 실패: ${escapeHtml(err.message)}</li>`;
+  }
+}
+
+function closeTrashModal() {
+  if (!els.trashModal) return;
+  els.trashModal.classList.add("hidden");
+  els.trashModal.setAttribute("aria-hidden", "true");
+}
+
+function renderTrashList(entries) {
+  if (entries.length === 0) {
+    els.trashList.innerHTML = `<li class="empty">비어있음</li>`;
+    return;
+  }
+  els.trashList.innerHTML = entries
+    .map((e) => {
+      const title = e.title || e.topic || e.originalName || e.fileName;
+      const depthLabel = e.depth !== null ? `d${e.depth}` : "—";
+      const trashedAt = (e.trashedAt ?? "").slice(0, 19).replace("T", " ");
+      const scope = [e.roadmapName, e.chapterId].filter(Boolean).join(" · ");
+      return `
+        <li class="trash-item">
+          <div class="trash-item-main">
+            <div class="trash-item-title">${escapeHtml(title)}</div>
+            <div class="trash-item-meta">
+              <span class="trash-depth">${depthLabel}</span>
+              ${scope ? `<span>${escapeHtml(scope)}</span>` : ""}
+              <span class="trash-item-when">${escapeHtml(trashedAt)} 삭제</span>
+            </div>
+          </div>
+          <button class="trash-restore-btn" data-file="${escapeAttr(e.fileName)}" type="button" title="복구">
+            ↩ 복구
+          </button>
+        </li>
+      `;
+    })
+    .join("");
+  els.trashList.querySelectorAll(".trash-restore-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const fileName = btn.dataset.file;
+      btn.disabled = true;
+      btn.textContent = "복구 중…";
+      try {
+        const res = await fetch("/api/trash/restore", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fileName }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          alert(`복구 실패: ${err.error ?? res.status}`);
+          btn.disabled = false;
+          btn.textContent = "↩ 복구";
+          return;
+        }
+        // 갱신: 모달 + 사이드바 + 챕터
+        await Promise.all([
+          openTrashModal(),
+          refreshSidebarRoadmaps(),
+          loadRoadmapData(),
+        ]);
+      } catch (err) {
+        alert(`복구 실패: ${err.message}`);
+        btn.disabled = false;
+        btn.textContent = "↩ 복구";
+      }
+    });
+  });
+}
+
+// ──────────────────────────────────────────────────────────
+// 학습 활동 캘린더 (contribution graph)
+// ──────────────────────────────────────────────────────────
+
+async function openActivityModal() {
+  if (!els.activityModal) return;
+  els.activityModal.classList.remove("hidden");
+  els.activityModal.setAttribute("aria-hidden", "false");
+  els.activitySummary.innerHTML = "loading…";
+  els.activityGrid.innerHTML = "";
+  els.activityMonthLabels.innerHTML = "";
+  try {
+    const data = await fetch("/api/activity?days=365").then((r) => r.json());
+    renderActivity(data);
+  } catch (err) {
+    els.activitySummary.innerHTML = `로드 실패: ${escapeHtml(err.message)}`;
+  }
+}
+
+function closeActivityModal() {
+  if (!els.activityModal) return;
+  els.activityModal.classList.add("hidden");
+  els.activityModal.setAttribute("aria-hidden", "true");
+}
+
+function renderActivity(data) {
+  const byDate = data.byDate ?? {};
+  const byDepth = data.byDepth ?? {};
+  const totalNotes = data.total ?? 0;
+
+  // 365일치 그리드 — 오늘부터 거꾸로 365일, 일요일 시작 column 정렬
+  // GitHub처럼 row=요일(일~토 7개), col=주
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const oneDay = 86400000;
+  const start = new Date(today.getTime() - 364 * oneDay);
+  // 첫 주의 시작 일요일까지 padding
+  const startDay = start.getDay(); // 0=일
+  const gridStart = new Date(start.getTime() - startDay * oneDay);
+
+  const weeks = Math.ceil((today.getTime() - gridStart.getTime()) / oneDay / 7) + 1;
+  const cells = [];
+  // depth 분포 계산 위해 최댓값
+  const counts = Object.values(byDate);
+  const max = counts.length ? Math.max(...counts) : 0;
+  const level = (n) => {
+    if (n === 0) return 0;
+    if (max <= 1) return 4;
+    if (n >= max * 0.75) return 4;
+    if (n >= max * 0.5) return 3;
+    if (n >= max * 0.25) return 2;
+    return 1;
+  };
+
+  // 활성 일수
+  let activeDays = 0;
+  let currentStreak = 0;
+  let longestStreak = 0;
+  let runningStreak = 0;
+  // 그리드 셀
+  for (let w = 0; w < weeks; w++) {
+    for (let d = 0; d < 7; d++) {
+      const ts = gridStart.getTime() + (w * 7 + d) * oneDay;
+      const date = new Date(ts);
+      if (ts > today.getTime()) {
+        cells.push(`<div class="activity-cell" data-level="-1"></div>`);
+        continue;
+      }
+      const dateStr = date.toISOString().slice(0, 10);
+      const count = byDate[dateStr] ?? 0;
+      if (count > 0) {
+        activeDays++;
+        runningStreak++;
+        if (runningStreak > longestStreak) longestStreak = runningStreak;
+      } else {
+        runningStreak = 0;
+      }
+      cells.push(
+        `<div class="activity-cell" data-level="${level(count)}" title="${dateStr}: ${count}개 노트"></div>`,
+      );
+    }
+  }
+  // current streak: 오늘부터 거꾸로 연속 노트 있는 일수
+  for (let i = 0; i <= 364; i++) {
+    const ts = today.getTime() - i * oneDay;
+    const ds = new Date(ts).toISOString().slice(0, 10);
+    if (byDate[ds]) currentStreak++;
+    else break;
+  }
+
+  els.activityGrid.style.gridTemplateColumns = `repeat(${weeks}, 1fr)`;
+  els.activityGrid.innerHTML = cells.join("");
+
+  // 월 레이블 (대략 매 4주마다)
+  const monthLabels = [];
+  let lastMonth = -1;
+  for (let w = 0; w < weeks; w++) {
+    const ts = gridStart.getTime() + w * 7 * oneDay;
+    const date = new Date(ts);
+    if (date.getMonth() !== lastMonth) {
+      monthLabels.push(`<span style="grid-column: ${w + 1};">${date.toLocaleDateString("ko", { month: "short" })}</span>`);
+      lastMonth = date.getMonth();
+    }
+  }
+  els.activityMonthLabels.style.gridTemplateColumns = `repeat(${weeks}, 1fr)`;
+  els.activityMonthLabels.innerHTML = monthLabels.join("");
+
+  // 요약
+  const depthSummary = Object.entries(byDepth)
+    .sort(([a], [b]) => Number(a) - Number(b))
+    .map(([d, n]) => `<span class="activity-stat">d${d}: <strong>${n}</strong></span>`)
+    .join("");
+  els.activitySummary.innerHTML = `
+    <span class="activity-stat">총 노트: <strong>${totalNotes}</strong></span>
+    <span class="activity-stat">활동일 (1년): <strong>${activeDays}</strong></span>
+    <span class="activity-stat">현재 연속: <strong>${currentStreak}일</strong></span>
+    <span class="activity-stat">최장 연속: <strong>${longestStreak}일</strong></span>
+    ${depthSummary}
+  `;
+}
+
+// ──────────────────────────────────────────────────────────
+// 검색 (Cmd+K)
+// ──────────────────────────────────────────────────────────
+
+const _searchState = {
+  items: [], // flat list: [{kind, payload, label, sublabel}, ...]
+  selectedIndex: 0,
+  lastQuery: "",
+  inflight: null,
+};
+
+function openSearchModal() {
+  if (!els.searchModal) return;
+  els.searchModal.classList.remove("hidden");
+  els.searchModal.setAttribute("aria-hidden", "false");
+  els.searchInput.value = "";
+  els.searchResults.innerHTML = `<div class="search-hint">최소 2글자 입력해 검색</div>`;
+  _searchState.items = [];
+  _searchState.selectedIndex = 0;
+  _searchState.lastQuery = "";
+  setTimeout(() => els.searchInput.focus(), 0);
+}
+
+function closeSearchModal() {
+  if (!els.searchModal) return;
+  els.searchModal.classList.add("hidden");
+  els.searchModal.setAttribute("aria-hidden", "true");
+}
+
+async function runSearch(q) {
+  const trimmed = q.trim();
+  if (trimmed.length < 2) {
+    els.searchResults.innerHTML = `<div class="search-hint">최소 2글자 입력해 검색</div>`;
+    _searchState.items = [];
+    _searchState.selectedIndex = 0;
+    return;
+  }
+  if (trimmed === _searchState.lastQuery) return;
+  _searchState.lastQuery = trimmed;
+
+  // 이전 inflight 무시 (덮어쓰기)
+  const myToken = (_searchState.inflight = Symbol("search"));
+  els.searchResults.innerHTML = `<div class="search-hint">검색 중…</div>`;
+  try {
+    const res = await fetch(
+      `/api/search?q=${encodeURIComponent(trimmed)}`,
+    ).then((r) => r.json());
+    if (_searchState.inflight !== myToken) return; // 다른 검색이 뒤에 시작됨
+    renderSearchResults(res, trimmed);
+  } catch (err) {
+    if (_searchState.inflight !== myToken) return;
+    els.searchResults.innerHTML = `<div class="search-hint">검색 실패: ${escapeHtml(err.message)}</div>`;
+  }
+}
+
+function highlight(text, q) {
+  if (!text || !q) return escapeHtml(text ?? "");
+  const idx = text.toLowerCase().indexOf(q.toLowerCase());
+  if (idx < 0) return escapeHtml(text);
+  return (
+    escapeHtml(text.slice(0, idx)) +
+    `<mark>${escapeHtml(text.slice(idx, idx + q.length))}</mark>` +
+    escapeHtml(text.slice(idx + q.length))
+  );
+}
+
+function renderSearchResults(res, q) {
+  const items = [];
+  // 로드맵
+  for (const r of res.roadmaps ?? []) {
+    items.push({
+      kind: "roadmap",
+      payload: r,
+      label: r.name,
+      sublabel: r.path,
+    });
+  }
+  // 챕터
+  for (const c of res.chapters ?? []) {
+    items.push({
+      kind: "chapter",
+      payload: c,
+      label: c.title,
+      sublabel: `${c.roadmapName} · ${c.chapterId}`,
+    });
+  }
+  // 노트
+  for (const n of res.notes ?? []) {
+    items.push({
+      kind: "note",
+      payload: n,
+      label: n.title || n.topic,
+      sublabel: `d${n.depth} · ${n.date} · ${n.roadmapName ?? "?"} · ${n.chapterId ?? "?"}`,
+    });
+  }
+  _searchState.items = items;
+  _searchState.selectedIndex = 0;
+
+  if (items.length === 0) {
+    els.searchResults.innerHTML = `<div class="search-hint">결과 없음</div>`;
+    return;
+  }
+  const sections = [];
+  const groups = [
+    { kind: "roadmap", label: "로드맵", icon: "📕" },
+    { kind: "chapter", label: "챕터", icon: "🔖" },
+    { kind: "note", label: "노트", icon: "📝" },
+  ];
+  let flatIdx = 0;
+  for (const g of groups) {
+    const group = items.filter((it) => it.kind === g.kind);
+    if (group.length === 0) continue;
+    sections.push(
+      `<div class="search-section-label">${g.icon} ${g.label} · ${group.length}</div>`,
+    );
+    for (const it of group) {
+      const idxInFlat = items.indexOf(it);
+      sections.push(`
+        <div class="search-item" data-idx="${idxInFlat}">
+          <div class="search-item-label">${highlight(it.label, q)}</div>
+          <div class="search-item-sublabel">${highlight(it.sublabel, q)}</div>
+        </div>
+      `);
+      flatIdx++;
+    }
+  }
+  els.searchResults.innerHTML = sections.join("");
+  updateSearchSelection();
+  els.searchResults.querySelectorAll(".search-item").forEach((el) => {
+    el.addEventListener("click", () => {
+      _searchState.selectedIndex = Number(el.dataset.idx);
+      activateSearchSelection();
+    });
+    el.addEventListener("mouseenter", () => {
+      _searchState.selectedIndex = Number(el.dataset.idx);
+      updateSearchSelection();
+    });
+  });
+}
+
+function updateSearchSelection() {
+  const nodes = els.searchResults.querySelectorAll(".search-item");
+  nodes.forEach((n) => {
+    const isActive = Number(n.dataset.idx) === _searchState.selectedIndex;
+    n.classList.toggle("active", isActive);
+    if (isActive && typeof n.scrollIntoView === "function") {
+      n.scrollIntoView({ block: "nearest" });
+    }
+  });
+}
+
+function moveSearchSelection(delta) {
+  if (_searchState.items.length === 0) return;
+  _searchState.selectedIndex =
+    (_searchState.selectedIndex + delta + _searchState.items.length) %
+    _searchState.items.length;
+  updateSearchSelection();
+}
+
+async function activateSearchSelection() {
+  const item = _searchState.items[_searchState.selectedIndex];
+  if (!item) return;
+  closeSearchModal();
+  if (item.kind === "roadmap") {
+    await switchRoadmap(item.payload.id);
+  } else if (item.kind === "chapter") {
+    // 로드맵 전환 + 챕터 자동 시작
+    if (state.activeRoadmapId !== item.payload.roadmapId) {
+      await switchRoadmap(item.payload.roadmapId);
+    }
+    // 챕터 시작 전 세션 인터럽트 체크
+    const decision = await handleSessionInterruption();
+    if (decision === "cancel") return;
+    startSession(item.payload.chapterId);
+  } else if (item.kind === "note") {
+    if (item.payload.obsidianUrl) {
+      window.location.href = item.payload.obsidianUrl;
+    }
+  }
+}
+
+async function refreshSidebarRoadmaps() {
+  try {
+    const list = await fetch("/api/roadmaps").then((r) => r.json());
+    state.roadmaps = Array.isArray(list) ? list : [];
+    renderRoadmapSelector();
+  } catch {
+    /* ignore — 사이드바 갱신 실패는 치명적이지 않음 */
+  }
+}
+
+let _activePopover = null;
+
+function closeDeletePopover() {
+  if (_activePopover) {
+    _activePopover.remove();
+    _activePopover = null;
+    document.removeEventListener("mousedown", _onOutsideClick, true);
+    document.removeEventListener("keydown", _onPopoverKey, true);
+  }
+}
+
+function _onOutsideClick(e) {
+  if (_activePopover && !_activePopover.contains(e.target)) {
+    closeDeletePopover();
+  }
+}
+
+function _onPopoverKey(e) {
+  if (e.key === "Escape") closeDeletePopover();
+}
+
+/**
+ * 삭제 팝오버. target은 챕터 또는 sub-roadmap.
+ *   - 챕터: { kind: "chapter", roadmapId, chapterId, title, depths }
+ *   - 로드맵: { kind: "roadmap", roadmapId, title, depths }
+ */
+function openDeletePopover(anchorEl, target) {
+  closeDeletePopover();
+  const depths = Array.isArray(target.depths) ? target.depths : [];
+  if (depths.length === 0) return;
+
+  const isRoadmap = target.kind === "roadmap";
+  const pop = document.createElement("div");
+  pop.className = "delete-popover";
+
+  const scopeLabel = isRoadmap ? "로드맵 전체" : "챕터";
+  const header = `<div class="delete-popover-title">${escapeHtml(scopeLabel)} 노트 삭제 — ${escapeHtml(target.title)}</div>`;
+  const perDepthBtns =
+    depths.length > 1
+      ? depths
+          .map(
+            (d) =>
+              `<button class="delete-popover-item" data-depth="${d}">d${d} 노트만 삭제</button>`,
+          )
+          .join("")
+      : "";
+  const allLabel =
+    depths.length > 1
+      ? isRoadmap
+        ? "이 로드맵 모두 삭제 (초기화)"
+        : "모두 삭제 (초기화)"
+      : isRoadmap
+        ? `이 로드맵의 d${depths[0]} 삭제 (초기화)`
+        : `d${depths[0]} 삭제 (초기화)`;
+  const allBtn = `<button class="delete-popover-item danger" data-all="1">${allLabel}</button>`;
+  const hint = `<div class="delete-popover-hint">vault의 spiral-buddy/.trash/로 이동 — 복구 가능</div>`;
+
+  pop.innerHTML = header + perDepthBtns + allBtn + hint;
+
+  // 위치 계산
+  const rect = anchorEl.getBoundingClientRect();
+  pop.style.position = "fixed";
+  pop.style.top = `${rect.bottom + 4}px`;
+  pop.style.left = `${Math.min(rect.left, window.innerWidth - 240)}px`;
+
+  document.body.appendChild(pop);
+  _activePopover = pop;
+
+  pop.addEventListener("click", async (e) => {
+    const btn = e.target.closest("button[data-depth], button[data-all]");
+    if (!btn) return;
+    const depthAttr = btn.getAttribute("data-depth");
+    const isAll = btn.hasAttribute("data-all");
+    const payload = { roadmapId: target.roadmapId };
+    if (!isRoadmap) payload.chapterId = target.chapterId;
+    if (depthAttr !== null) payload.depth = Number(depthAttr);
+
+    // "모두 삭제(초기화)" 액션엔 한 번 confirm. depth 부분 삭제는 confirm 없음.
+    if (isAll) {
+      const scope = isRoadmap ? "로드맵 전체" : "이 챕터";
+      const ok = window.confirm(
+        `${scope}의 모든 노트를 .trash/로 옮길까요?\n— ${target.title}`,
+      );
+      if (!ok) return;
+    }
+    closeDeletePopover();
+    try {
+      const res = await fetch("/api/notes", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(`삭제 실패: ${err.error ?? res.status}`);
+        return;
+      }
+      // 챕터 목록 + 사이드바 진도/배지 + 휴지통 뱃지 모두 갱신
+      await Promise.all([
+        loadRoadmapData(),
+        refreshSidebarRoadmaps(),
+        refreshTrashBadge(),
+      ]);
+    } catch (err) {
+      alert(`삭제 실패: ${err.message}`);
+    }
+  });
+
+  // 외부 클릭 / ESC 로 닫기 (다음 tick부터 활성)
+  setTimeout(() => {
+    document.addEventListener("mousedown", _onOutsideClick, true);
+    document.addEventListener("keydown", _onPopoverKey, true);
+  }, 0);
 }
 
 function renderHistory() {
