@@ -60,17 +60,30 @@ jobs:
       - name: Build TypeScript
         run: pnpm exec tsc
 
-      - name: Build Electron app
+      - name: Build Electron app (publish=never)
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # macOS code signing은 skip (자가서명/notarization은 후속 단계)
           CSC_IDENTITY_AUTO_DISCOVERY: false
           # Linux: electron-builder가 appimage tool을 다운로드하다 hang하는 케이스 방지
           USE_HARD_LINKS: false
           DEBUG: ${{ runner.os == 'Linux' && 'electron-builder' || '' }}
-        # 빌드 자체에도 timeout — 행이면 12분 후 강제 종료
         timeout-minutes: 12
-        run: pnpm exec electron-builder --publish always
+        # publish는 별도 step에서. electron-builder가 같은 step 안에서 multi-arch를
+        # 병렬 publish하면 GitHub Release create race로 두 번째가 422 실패함.
+        run: pnpm exec electron-builder --publish never
+
+      - name: Upload to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: |
+            release/*.dmg
+            release/*.exe
+            release/*.exe.blockmap
+            release/*.AppImage
+            release/latest*.yml
+          fail_on_unmatched_files: false
 
       - name: Upload artifacts (fallback)
         if: always()
