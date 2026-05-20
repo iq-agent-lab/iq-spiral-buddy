@@ -1,0 +1,71 @@
+appId: com.iq-lab.spiral-buddy
+productName: Spiral Buddy
+copyright: © 2026 iq-lab
+
+# 안전한 기본값: asar 끔. 자식 프로세스에서 dist/server.js를 process.execPath로 실행하므로
+# unpack 처리 신경 안 써도 됨. 사이즈 약간 늘지만 안정성 우선.
+asar: false
+
+directories:
+  output: release
+  buildResources: electron/build
+
+# 패키징할 파일 목록
+files:
+  - electron/**/*
+  - dist/**/*
+  - client/**/*
+  - data/**/*
+  - package.json
+  - "!**/*.map"
+  - "!**/*.ts"
+  - "!**/tsconfig*.json"
+  - "!.env*"
+  - "!.claude/**"
+  - "!docs/**"
+  - "!scripts/**"
+
+# extraResources에 둘 것 없음 — 모두 files에 포함
+
+mac:
+  category: public.app-category.education
+  target:
+    - target: dmg
+      arch:
+        - arm64
+        - x64
+  # 자가서명도 안 함 — 사용자가 우클릭 → "열기"로 우회. 초기 배포용.
+  identity: null
+  hardenedRuntime: false
+  gatekeeperAssess: false
+
+dmg:
+  title: Spiral Buddy ${version}
+  writeUpdateInfo: false
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  # code signing 없이 빌드 — Windows Defender SmartScreen 경고 뜸 (사용자 무시 가능)
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+
+linux:
+  target:
+    - target: AppImage
+      arch:
+        - x64
+  category: Education
+
+# GitHub Releases 발행 (CI에서 환경변수 GH_TOKEN 사용)
+publish:
+  provider: github
+  owner: iq-agent-lab
+  repo: iq-spiral-buddy
+  releaseType: release

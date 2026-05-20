@@ -1,8 +1,9 @@
 {
   "name": "iq-spiral-buddy",
-  "version": "0.1.0",
+  "version": "0.4.0",
   "description": "Spiral learning companion that bridges Claude and Obsidian. Local web app — roadmap-driven sessions, auto-structured notes, spiral revisit detection.",
   "type": "module",
+  "main": "electron/main.cjs",
   "private": true,
   "engines": {
     "node": ">=20"
@@ -12,7 +13,12 @@
     "start": "tsx src/server.ts",
     "mcp": "tsx src/mcp.ts",
     "build": "tsc",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "electron:dev": "tsc && electron electron/main.cjs",
+    "electron:build": "tsc && electron-builder",
+    "electron:build:mac": "tsc && electron-builder --mac",
+    "electron:build:win": "tsc && electron-builder --win",
+    "electron:build:linux": "tsc && electron-builder --linux"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.95.2",
@@ -28,6 +34,8 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
+    "electron": "^30.5.1",
+    "electron-builder": "^24.13.3",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"
   },
@@ -44,7 +52,8 @@
   "packageManager": "pnpm@11.1.1+sha512.d1fdf5f73c617b64fa1a56a81c3c8dfe0e966e33a6010aa256b517ae77be21d93e05affc0de1a83b0e4f29d569f68b446ae8f068cd7247c0bb3df0fb4d7bdf9a",
   "pnpm": {
     "onlyBuiltDependencies": [
-      "esbuild"
+      "esbuild",
+      "electron"
     ]
   }
 }

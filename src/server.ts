@@ -23,7 +23,10 @@ const MIME_TYPES: Record<string, string> = {
   ".ico": "image/x-icon",
 };
 
-async function main() {
+/**
+ * 서버 시작. Electron main 또는 직접 CLI 양쪽에서 호출 가능.
+ */
+export async function startServer(): Promise<{ url: string; port: number }> {
   const config = loadConfig();
 
   const app = new Hono();
@@ -43,7 +46,11 @@ async function main() {
       const ext = path.extname(filePath).toLowerCase();
       const contentType = MIME_TYPES[ext] ?? "application/octet-stream";
       return new Response(content, {
-        headers: { "Content-Type": contentType },
+        headers: {
+          "Content-Type": contentType,
+          // 개발 도구 — 코드 갱신이 즉시 보이도록 캐시 비활성화
+          "Cache-Control": "no-store, must-revalidate",
+        },
       });
     } catch {
       return c.notFound();
@@ -110,6 +117,19 @@ async function main() {
     }
     console.log(chalk.gray(`  vault name: ${config.vaultName ?? "(unset)"}`));
     console.log(chalk.gray(`  model:   ${config.model}`));
+    // .trash/ 자동 청소 (30일+ 파일 영구 삭제). 실패해도 서버 시작 막지 않음.
+    if (config.vaultPath) {
+      const { cleanupTrash } = await import("./vault.js");
+      cleanupTrash(config.vaultPath, 30)
+        .then((n) => {
+          if (n > 0) {
+            console.log(
+              chalk.gray(`  .trash cleanup: ${n} stale notes removed`),
+            );
+          }
+        })
+        .catch(() => {});
+    }
     console.log();
     console.log(chalk.green(`  → ${url}`));
     console.log();
@@ -122,12 +142,20 @@ async function main() {
       });
     }, 500);
   }
+
+  return { url, port };
 }
 
-main().catch((err) => {
-  console.error(
-    chalk.red("\n× Fatal:"),
-    err instanceof Error ? err.message : err,
-  );
-  process.exit(1);
-});
+// 이 파일이 직접 실행됐을 때만 자동 시작 (Electron에서 import할 땐 skip)
+const isMainModule =
+  import.meta.url === `file://${process.argv[1]}` ||
+  process.argv[1]?.endsWith("/server.ts") === true;
+if (isMainModule) {
+  startServer().catch((err) => {
+    console.error(
+      chalk.red("\n× Fatal:"),
+      err instanceof Error ? err.message : err,
+    );
+    process.exit(1);
+  });
+}
