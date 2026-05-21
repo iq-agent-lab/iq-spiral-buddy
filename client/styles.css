@@ -2419,6 +2419,27 @@ body.sidebar-collapsed .messages {
   font-weight: 600;
 }
 
+.settings-actions button.primary.danger {
+  background: var(--danger, #ff7a7a);
+  border-color: var(--danger, #ff7a7a);
+  color: #1a0e0e;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.checkbox-row input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent);
+}
+
 .settings-actions button:disabled { opacity: 0.5; cursor: progress; }
 
 /* topbar 설정 버튼 (다른 action-btn처럼) */

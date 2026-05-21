@@ -28,8 +28,8 @@ contextBridge.exposeInMainWorld("spiralSettings", {
     ipcRenderer.invoke("settings:update-model", { model }),
   switchWorkspace: (id) =>
     ipcRenderer.invoke("settings:switch-workspace", { id }),
-  removeWorkspace: (id) =>
-    ipcRenderer.invoke("settings:remove-workspace", { id }),
+  removeWorkspace: (args) =>
+    ipcRenderer.invoke("settings:remove-workspace", args),
   addWorkspace: (args) => ipcRenderer.invoke("settings:add-workspace", args),
   pickDirectory: (opts) => ipcRenderer.invoke("setup:pick-directory", opts),
   pickParentDir: () => ipcRenderer.invoke("setup:pick-parent-dir"),

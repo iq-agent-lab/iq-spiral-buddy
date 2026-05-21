@@ -1491,20 +1491,72 @@ function renderWorkspaceListInSettings() {
         await window.spiralSettings.switchWorkspace(id);
       } else if (action === "remove") {
         const ws = _settingsCache.workspaces.find((w) => w.id === id);
-        const ok = window.confirm(
-          `워크스페이스 "${ws?.name}"를 삭제할까요?\n(학습 자료 폴더와 노트 파일은 그대로 남습니다.)`,
-        );
-        if (!ok) return;
-        const res = await window.spiralSettings.removeWorkspace(id);
-        if (!res.ok) alert(res.error);
-        else {
-          _settingsCache = await window.spiralSettings.get();
-          renderWorkspaceListInSettings();
-          renderWorkspaceSelector();
-        }
+        if (ws) openRemoveWorkspaceModal(ws);
       }
     });
   });
+}
+
+function openRemoveWorkspaceModal(ws) {
+  const modal = document.getElementById("remove-ws-modal");
+  if (!modal) return;
+  document.getElementById("remove-ws-name").textContent = ws.name;
+  document.getElementById("remove-ws-dir-path").innerHTML = ws.roadmapRoot
+    ? `<code>${escapeHtml(ws.roadmapRoot)}</code> 가 영구 삭제됩니다.`
+    : "이 워크스페이스에 학습 자료 경로가 없습니다.";
+  document.getElementById("remove-ws-notes-path").innerHTML = `<code>${escapeHtml(_settingsCache.vaultPath ?? "")}/${escapeHtml(ws.vaultSubDir ?? "spiral-buddy")}</code> 이 옆 폴더로 이동(보관)됩니다.`;
+  document.getElementById("remove-ws-del-dir").checked = false;
+  document.getElementById("remove-ws-del-notes").checked = false;
+  document.getElementById("remove-ws-error").classList.add("hidden");
+  modal.classList.remove("hidden");
+  modal.setAttribute("aria-hidden", "false");
+
+  // 핸들러 매번 새로 (중복 방지)
+  const confirmBtn = document.getElementById("remove-ws-confirm");
+  const cancelBtn = document.getElementById("remove-ws-cancel");
+  const closeBtn = document.getElementById("remove-ws-close");
+  const cleanup = () => {
+    modal.classList.add("hidden");
+    confirmBtn.replaceWith(confirmBtn.cloneNode(true));
+    cancelBtn.replaceWith(cancelBtn.cloneNode(true));
+    closeBtn.replaceWith(closeBtn.cloneNode(true));
+  };
+
+  document.getElementById("remove-ws-confirm").addEventListener("click", async () => {
+    const deleteRoadmapDir = document.getElementById("remove-ws-del-dir").checked;
+    const deleteNotes = document.getElementById("remove-ws-del-notes").checked;
+    const btn = document.getElementById("remove-ws-confirm");
+    btn.disabled = true;
+    btn.textContent = "삭제 중…";
+    const res = await window.spiralSettings.removeWorkspace({
+      id: ws.id,
+      deleteRoadmapDir,
+      deleteNotes,
+    });
+    if (!res.ok) {
+      const errBox = document.getElementById("remove-ws-error");
+      errBox.textContent = res.error;
+      errBox.classList.remove("hidden");
+      btn.disabled = false;
+      btn.textContent = "삭제";
+      return;
+    }
+    cleanup();
+    _settingsCache = await window.spiralSettings.get();
+    renderWorkspaceListInSettings();
+    renderWorkspaceSelector();
+    // 에러가 있었으면 알림
+    if (res.errors && res.errors.length > 0) {
+      alert(
+        "삭제는 됐지만 일부 정리 실패:\n" + res.errors.join("\n"),
+      );
+    }
+  });
+  document.getElementById("remove-ws-cancel").addEventListener("click", cleanup);
+  document.getElementById("remove-ws-close").addEventListener("click", cleanup);
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) cleanup();
+  }, { once: true });
 }
 
 // ─── 새 워크스페이스 추가 모달 ─────────────────────────────────

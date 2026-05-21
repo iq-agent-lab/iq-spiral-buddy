@@ -491,25 +491,69 @@ ipcMain.handle("settings:switch-workspace", (_e, { id }) => {
   return { ok: true };
 });
 
-ipcMain.handle("settings:remove-workspace", (_e, { id }) => {
+ipcMain.handle("settings:remove-workspace", async (_e, args) => {
+  const { id, deleteRoadmapDir, deleteNotes } = args ?? {};
   const cfg = loadConfig();
   if (!cfg) return { ok: false, error: "config not found" };
   if (cfg.workspaces.length <= 1) {
     return { ok: false, error: "마지막 워크스페이스는 삭제할 수 없습니다." };
   }
+  const ws = cfg.workspaces.find((w) => w.id === id);
+  if (!ws) return { ok: false, error: "워크스페이스를 찾을 수 없습니다." };
+
+  const deletedPaths = [];
+  const errors = [];
+
+  // 1) 학습 자료 디렉토리 영구 삭제 (옵션)
+  //    안전: 이 워크스페이스가 source: "git-clone" 또는 spiral이 만든 위치일 때만 권장.
+  //    그래도 fs.rm은 사용자 명시적 동의로만 실행.
+  if (deleteRoadmapDir && ws.roadmapRoot && fs.existsSync(ws.roadmapRoot)) {
+    try {
+      fs.rmSync(ws.roadmapRoot, { recursive: true, force: true });
+      deletedPaths.push(`roadmap dir: ${ws.roadmapRoot}`);
+    } catch (err) {
+      errors.push(`자료 폴더 삭제 실패: ${err.message}`);
+    }
+  }
+
+  // 2) vault 안 노트 폴더 .trash로 이동 (옵션)
+  if (deleteNotes && cfg.vaultPath && ws.vaultSubDir) {
+    const notesDir = path.join(cfg.vaultPath, ws.vaultSubDir);
+    if (fs.existsSync(notesDir)) {
+      try {
+        const trashRoot = path.join(cfg.vaultPath, ws.vaultSubDir, ".trash-removed");
+        // 그냥 trash 폴더 통째로 backup. 위 vaultSubDir 자체가 삭제 대상이라
+        // sibling으로 이동시킴.
+        const ts = new Date()
+          .toISOString()
+          .replace(/[:T]/g, "-")
+          .replace(/\..+$/, "");
+        const movedTo = path.join(
+          cfg.vaultPath,
+          `${ws.vaultSubDir}-removed-${ts}`,
+        );
+        fs.renameSync(notesDir, movedTo);
+        deletedPaths.push(`notes (vault에서 이동): ${movedTo}`);
+      } catch (err) {
+        errors.push(`노트 이동 실패: ${err.message}`);
+      }
+    }
+  }
+
+  // 3) config에서 entry 제거
   cfg.workspaces = cfg.workspaces.filter((w) => w.id !== id);
-  // 삭제된 게 active면 첫 번째로 전환
-  if (cfg.activeWorkspaceId === id) {
-    cfg.activeWorkspaceId = cfg.workspaces[0].id;
-    saveConfig(cfg);
+  const wasActive = cfg.activeWorkspaceId === id;
+  if (wasActive) cfg.activeWorkspaceId = cfg.workspaces[0].id;
+  saveConfig(cfg);
+
+  if (wasActive) {
     setTimeout(() => {
       app.relaunch();
       app.exit(0);
     }, 100);
-    return { ok: true, restartNeeded: true };
+    return { ok: true, restartNeeded: true, deletedPaths, errors };
   }
-  saveConfig(cfg);
-  return { ok: true };
+  return { ok: true, deletedPaths, errors };
 });
 
 // Git URL 클론 또는 기존 디렉토리 지정으로 새 워크스페이스 추가
