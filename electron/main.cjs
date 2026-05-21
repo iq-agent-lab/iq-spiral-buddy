@@ -275,6 +275,28 @@ async function createMainWindow() {
   }
   const url = `http://127.0.0.1:${serverPort}`;
   await mainWindow.loadURL(url);
+
+  // 세션 진행 중일 때 client의 beforeunload가 preventDefault를 호출하면
+  // Electron 기본 동작은 "close를 막되 다이얼로그 없음" → X 버튼이 안 먹히는
+  // 것처럼 보이는 UX 버그. will-prevent-unload를 가로채서 native
+  // confirm 다이얼로그를 띄우고 사용자 선택에 따라 강제 unload 진행.
+  mainWindow.webContents.on("will-prevent-unload", (event) => {
+    const choice = dialog.showMessageBoxSync(mainWindow, {
+      type: "warning",
+      buttons: ["취소", "저장 없이 종료"],
+      defaultId: 0,
+      cancelId: 0,
+      title: "Spiral Buddy",
+      message: "진행 중인 학습 세션이 있습니다.",
+      detail:
+        '닫으면 지금까지의 대화가 사라집니다.\n저장하려면 메인 창의 "End & Save"를 먼저 누르세요.',
+    });
+    if (choice === 1) {
+      // preventDefault → beforeunload의 preventDefault를 무시하고 unload 진행
+      event.preventDefault();
+    }
+  });
+
   mainWindow.on("closed", () => {
     mainWindow = null;
   });
