@@ -38,7 +38,7 @@ body {
 }
 
 body {
-  --sidebar-w: 280px;
+  --sidebar-w: 400px;
   display: grid;
   grid-template-columns: var(--sidebar-w) 1fr;
   height: 100vh;

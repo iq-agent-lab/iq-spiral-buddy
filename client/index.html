@@ -27,7 +27,7 @@
                   <stop offset="0%" stop-color="#7ee2ff" stop-opacity="0.6" />
                   <stop offset="60%" stop-color="#7ee2ff" stop-opacity="0.12" />
                   <stop offset="100%" stop-color="#7ee2ff" stop-opacity="0" />
-                </linearGradient>
+                </radialGradient>
                 <linearGradient id="spiral-stroke" x1="0%" y1="0%" x2="100%" y2="100%">
                   <stop offset="0%" stop-color="#7ee2ff" />
                   <stop offset="50%" stop-color="#b794f6" />
@@ -49,16 +49,6 @@
           </div>
           <div class="brand-text">
             <h1 class="brand-title">Spiral Buddy</h1>
-          </div>
-        </div>
-
-        <div class="model-selector">
-          <label class="model-label" for="model-select">모델</label>
-          <div class="model-wrap">
-            <select id="model-select" class="model-select">
-              <option value="">loading…</option>
-            </select>
-            <span class="model-tier-badge" id="model-tier-badge"></span>
           </div>
         </div>
       </header>
@@ -138,9 +128,7 @@
             <line x1="9" y1="3" x2="9" y2="21"/>
           </svg>
         </button>
-        <div id="current-chapter">
-          <span class="placeholder-text">Select a chapter to start</span>
-        </div>
+        <div id="current-chapter"></div>
         <div id="actions">
           <button id="quiz-btn" class="action-btn quiz" disabled title="짧은 자가확인 질문 받기">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -272,6 +260,7 @@
               <select id="settings-model"></select>
               <button id="settings-save-model" class="settings-save-btn" type="button">저장</button>
             </div>
+            <div class="settings-hint">새 세션을 시작할 때 적용됩니다.</div>
           </div>
         </div>
 

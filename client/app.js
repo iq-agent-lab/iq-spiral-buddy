@@ -222,12 +222,16 @@ function wireEvents() {
   });
 
   // 사이드바 너비 조절 (드래그 핸들)
-  const SIDEBAR_WIDTH_KEY = "spiral-buddy:sidebar-width";
-  const SIDEBAR_MIN = 200;
-  const SIDEBAR_MAX = 600;
+  const SIDEBAR_WIDTH_KEY = "spiral-buddy:sidebar-width:v2";
+  const SIDEBAR_DEFAULT = 400;
+  const SIDEBAR_MIN = 280;
+  const SIDEBAR_MAX = 680;
   const savedWidth = localStorage.getItem(SIDEBAR_WIDTH_KEY);
   if (savedWidth) {
-    const w = Math.max(SIDEBAR_MIN, Math.min(SIDEBAR_MAX, parseInt(savedWidth, 10) || 280));
+    const w = Math.max(
+      SIDEBAR_MIN,
+      Math.min(SIDEBAR_MAX, parseInt(savedWidth, 10) || SIDEBAR_DEFAULT),
+    );
     document.body.style.setProperty("--sidebar-w", `${w}px`);
   }
   const resizer = document.getElementById("sidebar-resizer");
@@ -339,19 +343,18 @@ function wireEvents() {
     });
   }
 
-  // 모델 셀렉터 — 세션 중에는 비활성화
-  els.modelSelect.addEventListener("change", (e) => {
-    const modelId = e.target.value;
-    if (!modelId) return;
-    state.selectedModel = modelId;
-    localStorage.setItem("spiral-buddy:model", modelId);
-    updateModelTierBadge();
-    if (state.session) {
-      setStatus(
-        "ℹ️ 모델 변경은 다음 세션부터 적용돼요 (현재 세션은 그대로 진행)",
-      );
-    }
-  });
+  // 예전 홈 모델 셀렉터가 남아 있는 빌드도 안전하게 지원.
+  if (els.modelSelect) {
+    els.modelSelect.addEventListener("change", (e) => {
+      const modelId = e.target.value;
+      if (!modelId) return;
+      state.selectedModel = modelId;
+      updateModelTierBadge();
+      if (state.session) {
+        setStatus("모델 변경은 다음 세션부터 적용됩니다.");
+      }
+    });
+  }
   els.roadmapCurrent.addEventListener("click", () => {
     els.roadmapList.classList.toggle("hidden");
   });
@@ -391,11 +394,12 @@ async function loadInitial() {
 
     // 모델 목록 + 선택 상태
     state.models = modelsData?.models ?? [];
-    const savedModel = localStorage.getItem("spiral-buddy:model");
     const defaultModel = modelsData?.default ?? config?.model ?? null;
     state.selectedModel =
-      (savedModel && state.models.find((m) => m.id === savedModel)?.id) ||
+      state.models.find((m) => m.id === defaultModel)?.id ||
+      state.models[0]?.id ||
       defaultModel;
+    localStorage.removeItem("spiral-buddy:model");
     renderModelSelector();
 
     renderMeta();
@@ -1503,9 +1507,14 @@ async function saveVault() {
 }
 
 async function saveModel() {
-  const val = document.getElementById("settings-model").value;
+  const val = document.getElementById("settings-model")?.value;
+  if (!val) return;
   await window.spiralSettings.updateModel(val);
   _settingsCache = await window.spiralSettings.get();
+  state.selectedModel = val;
+  localStorage.removeItem("spiral-buddy:model");
+  renderModelSelector();
+  setStatus("모델 설정이 저장됐습니다. 다음 세션부터 적용됩니다.");
 }
 
 function renderWorkspaceListInSettings() {
@@ -2660,7 +2669,7 @@ function updateTopbar() {
   if (state.session) {
     els.topbar.innerHTML = `📖 <strong>${escapeHtml(state.session.chapterTitle)}</strong> <span class="depth">depth ${state.session.depth}</span> <span class="roadmap-badge">${escapeHtml(state.session.roadmapName)}</span>`;
   } else {
-    els.topbar.textContent = "Select a chapter to start";
+    els.topbar.textContent = "";
   }
 }
 
