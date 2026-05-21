@@ -70,7 +70,19 @@ jobs:
         timeout-minutes: 12
         # publish는 별도 step에서. electron-builder가 같은 step 안에서 multi-arch를
         # 병렬 publish하면 GitHub Release create race로 두 번째가 422 실패함.
-        run: pnpm exec electron-builder --publish never
+        # GitHub Releases binary 다운로드가 종종 502 일시 장애 → 셸 retry 3번.
+        shell: bash
+        run: |
+          for i in 1 2 3; do
+            if pnpm exec electron-builder --publish never; then
+              echo "✓ build succeeded on attempt $i"
+              exit 0
+            fi
+            echo "✗ build failed on attempt $i; sleeping 30s before retry…"
+            sleep 30
+          done
+          echo "build failed after 3 attempts"
+          exit 1
 
       - name: Upload to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
