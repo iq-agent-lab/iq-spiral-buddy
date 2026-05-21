@@ -52,6 +52,52 @@ const state = {
 // localStorage에 마지막 로드맵 저장
 const LS_KEY = "spiral-buddy:lastRoadmapId";
 
+const CATEGORY_ICON_BY_NAME = {
+  "java core": "coffee",
+  "spring ecosystem": "leaf",
+  "architecture & design": "temple",
+  "infrastructure & devops": "monitor",
+  database: "database",
+  "messaging & streaming": "mail",
+  "api & communication": "plug",
+  "security engineering": "lock",
+  "performance & quality": "bolt",
+  uncategorized: "folder",
+};
+
+const ICON_SVG = {
+  bolt: `<path d="M13 2 5 13h6l-1 9 8-12h-6l1-8Z" />`,
+  coffee: `<path d="M5 8h9v4.5A4.5 4.5 0 0 1 9.5 17 4.5 4.5 0 0 1 5 12.5V8Z" /><path d="M14 9h1.5a2.5 2.5 0 0 1 0 5H14" /><path d="M4 20h13" /><path d="M8 4c-.7.7-.7 1.3 0 2M11 3c-.8.8-.8 1.5 0 2.3" />`,
+  database: `<ellipse cx="12" cy="5" rx="6" ry="2.5" /><path d="M6 5v10c0 1.4 2.7 2.5 6 2.5s6-1.1 6-2.5V5" /><path d="M6 10c0 1.4 2.7 2.5 6 2.5s6-1.1 6-2.5" />`,
+  folder: `<path d="M3.5 6.5h6l1.8 2H20v8.5a2 2 0 0 1-2 2H5.5a2 2 0 0 1-2-2V6.5Z" />`,
+  leaf: `<path d="M19 4c-6.5.3-11.3 2.8-13 7-1 2.7.7 5.8 3.8 6.2 4.5.6 8.2-3.4 9.2-13.2Z" /><path d="M6 18c2.8-4.7 6.1-7.7 10-9.3" />`,
+  lock: `<rect x="5" y="10" width="14" height="9" rx="2" /><path d="M8 10V8a4 4 0 0 1 8 0v2" /><path d="M12 14v2" />`,
+  mail: `<rect x="4" y="6" width="16" height="12" rx="2" /><path d="m4.8 7.2 7.2 5.4 7.2-5.4" /><path d="m4.8 16.8 4.8-4" /><path d="m19.2 16.8-4.8-4" />`,
+  monitor: `<rect x="4" y="5" width="16" height="11" rx="2" /><path d="M9 20h6" /><path d="M12 16v4" />`,
+  plug: `<path d="M8 6v5" /><path d="M12 6v5" /><path d="M6 11h8v2a4 4 0 0 1-8 0v-2Z" /><path d="M10 17v2" /><path d="M10 19h5a3 3 0 0 0 3-3v-1" />`,
+  repo: `<path d="m12 3 7 4-7 4-7-4 7-4Z" /><path d="m5 7v8l7 4 7-4V7" /><path d="M12 11v8" />`,
+  temple: `<path d="M4 9h16" /><path d="m5 8 7-5 7 5" /><path d="M6 10v7" /><path d="M10 10v7" /><path d="M14 10v7" /><path d="M18 10v7" /><path d="M4 19h16" />`,
+};
+
+function svgIcon(name, className = "inline-icon") {
+  const body = ICON_SVG[name] ?? ICON_SVG.folder;
+  return `<svg class="${className}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
+}
+
+function categoryIconHtml(category) {
+  const key = String(category?.name ?? "uncategorized").toLowerCase();
+  const iconName = CATEGORY_ICON_BY_NAME[key] ?? "folder";
+  return `<span class="cat-icon" aria-hidden="true">${svgIcon(iconName, "cat-icon-svg")}</span>`;
+}
+
+function repoIconHtml() {
+  return `<span class="repo-icon" aria-hidden="true">${svgIcon("repo", "repo-icon-svg")}</span>`;
+}
+
+function groupIconHtml(name) {
+  return `<span class="group-icon" aria-hidden="true">${svgIcon(name, "group-icon-svg")}</span>`;
+}
+
 // ──────────────────────────────────────────────────────────
 // DOM refs
 // ──────────────────────────────────────────────────────────
@@ -577,7 +623,7 @@ function renderRoadmapSelector() {
       0,
     );
     parts.push(
-      `<div class="roadmap-group-title">📁 Local · ${tree.size} categories · ${totalRepos} repos · ${local.length} roadmaps</div>`,
+      `<div class="roadmap-group-title">${groupIconHtml("folder")}<span>Local · ${tree.size} categories · ${totalRepos} repos · ${local.length} roadmaps</span></div>`,
     );
 
     for (const [catName, repoMap] of tree) {
@@ -673,7 +719,7 @@ function renderRoadmapSelector() {
             <div class="local-repo">
               <button class="${repoClass} ${isFlatActive ? "active" : ""}" ${repoHeaderAttrs}>
                 ${!isSingleFlat ? `<span class="cat-caret">${repoCaret}</span>` : `<span class="cat-caret"> </span>`}
-                <span class="repo-emoji">📦</span>
+                ${repoIconHtml()}
                 <span class="repo-name">${escapeHtml(repoName)}</span>
                 ${repoDepthBadge}
                 <span class="cat-count">${isSingleFlat ? roadmaps[0].chapterCount : roadmaps.length}</span>
@@ -693,7 +739,7 @@ function renderRoadmapSelector() {
         <div class="curated-category local-category">
           <button class="category-header" data-local-cat="${escapeAttr(catName)}" style="--cat-color: ${escapeAttr(cat.color)}">
             <span class="cat-caret">${catCaret}</span>
-            <span class="cat-emoji">${escapeHtml(cat.emoji)}</span>
+            ${categoryIconHtml(cat)}
             <span class="cat-name">${escapeHtml(catName)}</span>
             <span class="cat-count">${repoMap.size}r · ${totalRoadmapsInCat}</span>
           </button>
@@ -705,7 +751,7 @@ function renderRoadmapSelector() {
 
   if (curated.length > 0) {
     parts.push(
-      `<div class="roadmap-group-title">📚 Curated · ${escapeHtml(state.curatedOrg ?? "")} (${curated.length})</div>`,
+      `<div class="roadmap-group-title">${groupIconHtml("database")}<span>Curated · ${escapeHtml(state.curatedOrg ?? "")} (${curated.length})</span></div>`,
     );
     parts.push(curated.map(roadmapItemHtml).join(""));
   }
@@ -778,7 +824,7 @@ function renderRoadmapSelector() {
             <div class="curated-category">
               <button class="category-header" data-cat="${escapeAttr(group.name)}" style="--cat-color: ${escapeAttr(group.color)}">
                 <span class="cat-caret">${caret}</span>
-                <span class="cat-emoji">${escapeHtml(group.emoji)}</span>
+                ${categoryIconHtml(group)}
                 <span class="cat-name">${escapeHtml(group.name)}</span>
                 <span class="cat-count">${group.repos.length}</span>
               </button>
