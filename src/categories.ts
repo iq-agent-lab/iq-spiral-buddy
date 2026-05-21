@@ -126,8 +126,7 @@ export async function categorizeLocalRoadmap(
   roadmapId: string,
 ): Promise<CategoryDef> {
   const segments = roadmapId.split("/").map((s) => s.trim()).filter(Boolean);
-
-  if (segments.length < 2) {
+  if (segments.length === 0) {
     return {
       name: "Uncategorized",
       emoji: "📁",
@@ -136,19 +135,33 @@ export async function categorizeLocalRoadmap(
     };
   }
 
+  const defs = org ? await getOrgCategories(org) : null;
   const firstSeg = segments[0]!;
 
-  // 정의된 카테고리와 정규화 매칭 시도
-  const defs = org ? await getOrgCategories(org) : null;
   if (defs) {
+    // 1) 첫 segment가 카테고리 이름인 케이스 (예: "java core/jvm-deep-dive/...")
     const normalized = normalizeCategoryName(firstSeg);
-    const match = defs.find(
+    const byName = defs.find(
       (c) => normalizeCategoryName(c.name) === normalized,
     );
-    if (match) return match;
+    if (byName) return byName;
+
+    // 2) 첫 segment가 레포 이름인 케이스 (예: "jvm-deep-dive/..." — 평탄 클론).
+    //    JSON의 카테고리 repos[]에서 역검색해서 소속 카테고리 반환.
+    for (const cat of defs) {
+      if (cat.repos.includes(firstSeg)) return cat;
+    }
   }
 
-  // fallback: 첫 segment 그대로 사용
+  // 3) 매칭 실패 — 1 segment뿐이면 Uncategorized, 2+ segment면 첫 segment를 카테고리 표시
+  if (segments.length < 2) {
+    return {
+      name: "Uncategorized",
+      emoji: "📁",
+      color: "#888888",
+      repos: [],
+    };
+  }
   return {
     name: firstSeg,
     emoji: "📁",

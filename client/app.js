@@ -499,6 +499,16 @@ function renderRoadmapSelector() {
     //   → repo: "grpc-deep-dive" (path 두 번째 segment)
     //   → sub-roadmap: "grpc-fundamentals" (path 세 번째+)
     function parseHierarchy(r) {
+      // backend가 카테고리 정의(JSON repos)를 알고 있어서 평탄/계층 구조를
+      // 정확히 판단 후 r.hierarchy로 보내줌. 그게 있으면 그대로 사용.
+      if (r.hierarchy) {
+        return {
+          repo: r.hierarchy.repo,
+          sub: r.hierarchy.sub,
+          isFlat: r.hierarchy.sub === null,
+        };
+      }
+      // fallback (옛 응답 형식 또는 curated): id 경로로 추정
       const segments = r.id
         .split("/")
         .map((s) => s.trim())
@@ -510,7 +520,6 @@ function renderRoadmapSelector() {
           isFlat: false,
         };
       } else if (segments.length === 2) {
-        // category 폴더 안에 바로 sub 없는 레포 (드물 듯)
         return { repo: segments[1], sub: null, isFlat: true };
       }
       return { repo: segments[0] ?? r.name, sub: null, isFlat: true };

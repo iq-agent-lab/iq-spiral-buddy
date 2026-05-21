@@ -213,6 +213,32 @@ export function createApi(config: Config) {
             r.source === "local"
               ? await categorizeLocalRoadmap(config.curatedOrg, r.id)
               : null;
+
+          // 사이드바 트리(category → repo → sub-roadmap)에 쓸 hierarchy 정보.
+          // 두 가지 구조를 모두 지원:
+          //   a) 계층:   "java core/jvm-deep-dive/class-loading"  (사용자가 카테고리 폴더로 정리)
+          //   b) 평탄:   "jvm-deep-dive/class-loading"           (자동 다운로드 결과)
+          // category.repos 안에 첫 segment가 들어있으면 (b), 아니면 (a).
+          let hierarchy: { repo: string; sub: string | null } | null = null;
+          if (r.source === "local" && category) {
+            const segs = r.id.split("/").map((s) => s.trim()).filter(Boolean);
+            const isFlat = category.repos.includes(segs[0] ?? "");
+            if (isFlat) {
+              hierarchy = {
+                repo: segs[0] ?? r.name,
+                sub: segs.slice(1).join("/") || null,
+              };
+            } else if (segs.length >= 3) {
+              hierarchy = {
+                repo: segs[1]!,
+                sub: segs.slice(2).join("/") || null,
+              };
+            } else if (segs.length === 2) {
+              hierarchy = { repo: segs[1]!, sub: null };
+            } else {
+              hierarchy = { repo: segs[0] ?? r.name, sub: null };
+            }
+          }
           return {
             id: r.id,
             name: r.name,
@@ -230,6 +256,7 @@ export function createApi(config: Config) {
                   color: category.color,
                 }
               : null,
+            hierarchy,
           };
         }),
       );
