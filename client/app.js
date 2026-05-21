@@ -1356,12 +1356,28 @@ function openSettingsModal() {
   if (!_settingsCache) return;
   els.settingsModal.classList.remove("hidden");
   els.settingsModal.setAttribute("aria-hidden", "false");
-  document.getElementById("settings-api-key").value = "";
-  document.getElementById("settings-api-key").placeholder =
-    _settingsCache.apiKeyMasked ?? "sk-ant-...";
+
+  // API 키: 입력은 비움(보안). 저장된 키는 별도 status 라인에 명확히 표시.
+  const apiInput = document.getElementById("settings-api-key");
+  const apiStatus = document.getElementById("settings-api-key-status");
+  const apiSaveBtn = document.getElementById("settings-save-api-key");
+  apiInput.value = "";
+  apiInput.placeholder = "새 키 입력 (변경할 때만)";
+  if (_settingsCache.apiKeyMasked) {
+    apiStatus.innerHTML = `✓ <strong>저장된 키:</strong> <code>${escapeHtml(_settingsCache.apiKeyMasked)}</code> · 변경하려면 위에 새 키 입력`;
+    apiStatus.classList.add("ok");
+  } else {
+    apiStatus.textContent = "키가 저장되어 있지 않습니다.";
+    apiStatus.classList.remove("ok");
+  }
+  // 빈 input일 땐 저장 버튼 disabled — 의도치 않게 빈 키로 덮어쓰는 사고 방지
+  apiSaveBtn.disabled = true;
+  apiInput.oninput = () => {
+    apiSaveBtn.disabled = apiInput.value.trim().length === 0;
+  };
+
   document.getElementById("settings-vault-path").value =
     _settingsCache.vaultPath ?? "";
-  document.getElementById("settings-api-key-status").textContent = "";
 
   // 모델 목록은 state.models에서 (이미 메인앱에 로드됨)
   const modelSel = document.getElementById("settings-model");
@@ -1384,19 +1400,27 @@ function closeSettingsModal() {
 async function saveApiKey() {
   const input = document.getElementById("settings-api-key");
   const status = document.getElementById("settings-api-key-status");
+  const saveBtn = document.getElementById("settings-save-api-key");
   const val = input.value.trim();
   if (!val) {
     status.textContent = "키를 입력하세요.";
+    status.classList.remove("ok");
     return;
   }
+  saveBtn.disabled = true;
+  saveBtn.textContent = "저장 중…";
   const res = await window.spiralSettings.updateApiKey(val);
+  saveBtn.textContent = "저장";
   if (res.ok) {
-    status.textContent = "✓ 저장됨 (다음 세션부터 적용)";
     _settingsCache = await window.spiralSettings.get();
     input.value = "";
-    input.placeholder = _settingsCache.apiKeyMasked;
+    input.placeholder = "새 키 입력 (변경할 때만)";
+    status.innerHTML = `✓ <strong>저장됨:</strong> <code>${escapeHtml(_settingsCache.apiKeyMasked)}</code> · 다음 세션부터 적용`;
+    status.classList.add("ok");
   } else {
     status.textContent = `✗ ${res.error}`;
+    status.classList.remove("ok");
+    saveBtn.disabled = false;
   }
 }
 

@@ -2270,6 +2270,23 @@ body.sidebar-collapsed .messages {
   margin-top: 6px;
 }
 
+.settings-hint.ok {
+  color: var(--accent, #7ee2ff);
+}
+
+.settings-hint code {
+  background: var(--bg-elev-2);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 10px;
+  color: var(--text);
+}
+
+.settings-save-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .settings-add-btn {
   width: 100%;
   background: transparent;
