@@ -114,6 +114,17 @@ function normalizeCategoryName(s: string): string {
 }
 
 /**
+ * 레포 이름 정규화 (매칭용).
+ * "-deep-dive" suffix는 학습 자료에서 흔하므로 옵셔널 처리:
+ * - "architecture-patterns-deep-dive" (GitHub repo / JSON)
+ * - "architecture-patterns" (사용자가 카테고리 폴더에 줄여서 둔 디렉토리)
+ * 둘 다 동일 ID로 매칭됨.
+ */
+export function normalizeRepoName(s: string): string {
+  return s.toLowerCase().replace(/-deep-dive$/, "").trim();
+}
+
+/**
  * Local 로드맵의 path에서 카테고리 추출.
  * 사용자의 폴더가 카테고리 단위로 정리되어 있다면 (예: iq-dev-lab),
  * roadmap_id의 첫 segment가 카테고리.
@@ -147,9 +158,10 @@ export async function categorizeLocalRoadmap(
     if (byName) return byName;
 
     // 2) 첫 segment가 레포 이름인 케이스 (예: "jvm-deep-dive/..." — 평탄 클론).
-    //    JSON의 카테고리 repos[]에서 역검색해서 소속 카테고리 반환.
+    //    JSON의 카테고리 repos[]에서 역검색. -deep-dive suffix는 옵셔널.
+    const segNorm = normalizeRepoName(firstSeg);
     for (const cat of defs) {
-      if (cat.repos.includes(firstSeg)) return cat;
+      if (cat.repos.some((r) => normalizeRepoName(r) === segNorm)) return cat;
     }
   }
 

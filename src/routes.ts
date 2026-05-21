@@ -41,6 +41,7 @@ import {
   groupReposByCategory,
   categorizeLocalRoadmap,
   getOrgCategories,
+  normalizeRepoName,
 } from "./categories.js";
 
 export function createApi(config: Config) {
@@ -222,7 +223,10 @@ export function createApi(config: Config) {
           let hierarchy: { repo: string; sub: string | null } | null = null;
           if (r.source === "local" && category) {
             const segs = r.id.split("/").map((s) => s.trim()).filter(Boolean);
-            const isFlat = category.repos.includes(segs[0] ?? "");
+            const seg0Norm = normalizeRepoName(segs[0] ?? "");
+            const isFlat = category.repos.some(
+              (rp) => normalizeRepoName(rp) === seg0Norm,
+            );
             if (isFlat) {
               hierarchy = {
                 repo: segs[0] ?? r.name,
@@ -261,18 +265,43 @@ export function createApi(config: Config) {
         }),
       );
 
-    // 카테고리 정의 순서대로 stable sort (정의에 없는 건 끝으로).
-    // 같은 카테고리 안에서는 sortKey 순서 유지 (Array.sort는 stable).
+    // 3단계 정렬:
+    //   1. 카테고리 순서 (JSON categories 배열 인덱스)
+    //   2. 카테고리 안 repo 순서 (JSON repos 배열 인덱스 — 학습 흐름)
+    //   3. 같은 repo 안 sub-roadmap 순서 (Array.sort는 stable이라 sortKey/README 순서 유지)
     const catDefs = config.curatedOrg
       ? await getOrgCategories(config.curatedOrg)
       : null;
     if (catDefs) {
       const catOrder = new Map<string, number>();
-      catDefs.forEach((c, i) => catOrder.set(c.name, i));
+      // "<category>::<repo>" → index
+      const repoOrder = new Map<string, number>();
+      catDefs.forEach((c, i) => {
+        catOrder.set(c.name, i);
+        c.repos.forEach((repo, j) => {
+          // normalize 적용 — JSON에 "-deep-dive" suffix, 디렉토리에 없을 수 있음
+          repoOrder.set(`${c.name}::${normalizeRepoName(repo)}`, j);
+        });
+      });
+      const repoOf = (r: typeof enriched[number]) =>
+        r.hierarchy?.repo ?? null;
       enriched.sort((a, b) => {
         const ai = a.category ? catOrder.get(a.category.name) ?? Infinity : Infinity;
         const bi = b.category ? catOrder.get(b.category.name) ?? Infinity : Infinity;
-        return ai - bi;
+        if (ai !== bi) return ai - bi;
+        // 같은 카테고리 안 — repo 순서
+        const aRepo = repoOf(a);
+        const bRepo = repoOf(b);
+        if (a.category && aRepo && bRepo) {
+          const ari =
+            repoOrder.get(`${a.category.name}::${normalizeRepoName(aRepo)}`) ??
+            Infinity;
+          const bri =
+            repoOrder.get(`${a.category.name}::${normalizeRepoName(bRepo)}`) ??
+            Infinity;
+          if (ari !== bri) return ari - bri;
+        }
+        return 0; // 같은 repo 내에서는 sortKey 순서 유지 (stable)
       });
     }
 
