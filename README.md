@@ -110,7 +110,7 @@ pnpm electron:build:linux   # Linux만
 ## 사이드바 구조
 
 ```
-🌀 spiral buddy
+🌀 Spiral Buddy
    [모델 ▼  Sonnet 4.6  (balanced)]
 ─────────────
 ROADMAP
