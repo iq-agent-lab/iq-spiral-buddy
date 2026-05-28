@@ -59,7 +59,12 @@ export function createApi(config: Config) {
       ? fileNameOrPath
       : path.join(config.vaultPath, vaultSubDir, fileNameOrPath);
     const root = config.obsidianVaultRoot ?? config.vaultPath;
-    const relativeToVault = path.relative(root, absPath).replace(/\.md$/, "");
+    // obsidian:// URL은 항상 forward slash — Windows 백슬래시 정규화
+    const relativeToVault = path
+      .relative(root, absPath)
+      .replace(/\.md$/, "")
+      .split(path.sep)
+      .join("/");
     return `obsidian://open?vault=${encodeURIComponent(config.vaultName)}&file=${encodeURIComponent(relativeToVault)}`;
   }
 

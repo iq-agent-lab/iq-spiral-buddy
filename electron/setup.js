@@ -37,6 +37,19 @@ async function init() {
         },
         { once: true },
       );
+    } else {
+      // 자동 감지 실패 — Obsidian 미설치 가능성. 설치 안내 + 다운로드 링크.
+      const notFound = document.getElementById("vault-not-found");
+      if (notFound) {
+        notFound.classList.remove("hidden");
+        const linkObsidian = document.getElementById("link-obsidian");
+        if (linkObsidian) {
+          linkObsidian.addEventListener("click", (e) => {
+            e.preventDefault();
+            window.spiralSetup.openExternal(linkObsidian.dataset.href);
+          });
+        }
+      }
     }
   }
 

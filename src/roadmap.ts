@@ -147,10 +147,13 @@ async function walk(
   );
 
   if (directMdFiles.length >= MIN_CHAPTERS) {
+    // roadmap.id는 항상 POSIX 스타일(/) — Windows의 path.relative는 백슬래시(\)를
+    // 반환하는데, categorize/hierarchy/repo순서 매칭이 모두 "/"로 split하므로
+    // 정규화하지 않으면 Windows에서 전부 단일 segment로 오인되어 정렬이 깨진다.
     const id =
       currentDir === rootPath
         ? path.basename(currentDir)
-        : path.relative(rootPath, currentDir);
+        : path.relative(rootPath, currentDir).split(path.sep).join("/");
     out.push({
       id,
       name: path.basename(currentDir),
