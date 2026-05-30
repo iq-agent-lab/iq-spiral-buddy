@@ -3,6 +3,29 @@
 > Spiral learning companion that bridges Claude and Obsidian.
 > 로컬 웹앱 + Claude Desktop MCP 동시 제공.
 
+## ⚡ 한 줄 설치 (macOS Apple Silicon, 최신 릴리스 자동)
+
+터미널에 그대로 붙여 넣기 — GitHub Releases API로 **최신 버전 자동 감지** + 다운로드 + 마운트 + 설치 + 실행:
+
+```bash
+V=$(curl -fsSL https://api.github.com/repos/iq-agent-lab/iq-spiral-buddy/releases/latest | sed -n 's/.*"tag_name": "v\([^"]*\)".*/\1/p') && \
+echo "→ installing v$V" && cd /tmp && \
+curl -fL -o /tmp/spiral.dmg "https://github.com/iq-agent-lab/iq-spiral-buddy/releases/download/v$V/Spiral.Buddy-$V-arm64.dmg" && \
+hdiutil attach -nobrowse -quiet /tmp/spiral.dmg && \
+rm -rf '/Applications/Spiral Buddy.app' && \
+cp -R "/Volumes/Spiral Buddy $V/Spiral Buddy.app" /Applications/ && \
+hdiutil detach -quiet "/Volumes/Spiral Buddy $V" && \
+xattr -cr '/Applications/Spiral Buddy.app' && \
+rm -f /tmp/spiral.dmg && \
+open '/Applications/Spiral Buddy.app'
+```
+
+> Intel Mac은 위 명령에서 `-arm64`를 빼고 `Spiral.Buddy-$V.dmg`로. Windows/Linux는 [Releases 페이지](https://github.com/iq-agent-lab/iq-spiral-buddy/releases/latest)에서 직접 받으세요.
+>
+> 첫 실행 시 macOS Gatekeeper 경고("'손상되었기 때문에 열 수 없습니다") — 위 명령에 포함된 `xattr -cr`이 해결합니다. 설정·노트·워크스페이스는 모두 vault 안 또는 `~/Library/Application Support/Spiral Buddy/`에 있어서 재설치해도 안 사라집니다.
+
+---
+
 학습 로드맵을 기반으로 Claude와 Socratic 학습 세션을 진행하고, 그 결과를 옵시디언에 **나선형 구조로 자동 축적**하는 도구. `pnpm dev` 치면 브라우저가 자동으로 열리고, 다음 세션엔 이전 노트가 자동 컨텍스트로 들어가서 "어디까지 했더라"를 매번 다시 만들 필요가 없다.
 
 ```

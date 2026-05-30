@@ -4046,13 +4046,25 @@ button.primary:hover:not(:disabled),
   position: fixed;
   z-index: 1100;
   display: flex;
-  gap: 2px;
+  align-items: stretch;
+  gap: 0;
   padding: 4px;
-  background: var(--bg-elev, #121821);
-  border: 1px solid var(--border, rgba(148, 169, 190, 0.22));
-  border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-  animation: lookup-tb-in 120ms ease-out;
+  background: linear-gradient(
+    180deg,
+    rgba(26, 33, 48, 0.96),
+    rgba(18, 24, 33, 0.96)
+  );
+  border: 1px solid rgba(148, 169, 190, 0.22);
+  border-radius: 9px;
+  box-shadow:
+    0 14px 32px -8px rgba(0, 0, 0, 0.55),
+    0 4px 10px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  animation: lookup-tb-in 140ms ease-out;
+  user-select: none;
+  font-family: inherit;
 }
 
 .lookup-toolbar.hidden {
@@ -4060,22 +4072,57 @@ button.primary:hover:not(:disabled),
 }
 
 @keyframes lookup-tb-in {
-  from { opacity: 0; transform: translateY(4px) scale(0.97); }
+  from { opacity: 0; transform: translateY(6px) scale(0.96); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
+.lookup-toolbar-divider {
+  width: 1px;
+  margin: 4px 1px;
+  background: rgba(148, 169, 190, 0.15);
+  flex-shrink: 0;
+}
+
 .lookup-tool-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   background: transparent;
   border: 0;
   color: var(--text-dim, #a6b2bb);
-  padding: 5px 10px;
-  border-radius: 5px;
+  padding: 6px 10px;
+  border-radius: 6px;
   font-size: 12px;
+  font-weight: 500;
   font-family: inherit;
+  letter-spacing: 0.01em;
   cursor: pointer;
+  transition: background 120ms, color 120ms, transform 80ms;
+  white-space: nowrap;
 }
 
 .lookup-tool-btn:hover {
-  background: var(--bg-elev-2, #19212c);
+  background: rgba(159, 179, 193, 0.1);
   color: var(--text, #edf3f5);
 }
+
+.lookup-tool-btn:active {
+  transform: scale(0.96);
+  background: rgba(159, 179, 193, 0.16);
+}
+
+.lookup-tool-btn svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  transition: color 120ms;
+}
+
+/* depth별 미묘한 색 구분: 빠름(warm) → 깊이(cool) */
+.lookup-tool-btn[data-depth="concise"] svg { color: #e3c787; }
+.lookup-tool-btn[data-depth="medium"]  svg { color: #b7c5d2; }
+.lookup-tool-btn[data-depth="deep"]    svg { color: #b29bf0; }
+
+.lookup-tool-btn:hover[data-depth="concise"] svg { color: #f3d99c; }
+.lookup-tool-btn:hover[data-depth="medium"]  svg { color: #d5dde6; }
+.lookup-tool-btn:hover[data-depth="deep"]    svg { color: #cbb6ff; }

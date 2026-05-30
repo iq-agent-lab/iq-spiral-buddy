@@ -1776,16 +1776,15 @@ function initLookup() {
     }, 0);
   });
 
-  // toolbar 버튼 핸들러
+  // toolbar 버튼 핸들러 — mousedown에서 직접 실행 (click 이벤트는 선택 해제 후
+  // 발생할 수 있어 selection이 비어 있는 경우가 생김).
   els.lookupToolbar.querySelectorAll(".lookup-tool-btn").forEach((b) => {
     b.addEventListener("mousedown", (e) => {
-      // 클릭 시 selection 해제 방지
-      e.preventDefault();
-    });
-    b.addEventListener("click", () => {
+      e.preventDefault(); // selection이 사라지지 않게 + focus 변경 방지
+      e.stopPropagation();
       const depth = b.dataset.depth;
       const text = (window.getSelection()?.toString() ?? "").trim();
-      if (!text) return;
+      if (!text || !depth) return;
       hideLookupToolbar();
       runLookup(text, depth);
     });

@@ -195,9 +195,30 @@
     </aside>
 
     <div id="lookup-toolbar" class="lookup-toolbar hidden" role="toolbar" aria-label="선택 텍스트 Look-up">
-      <button class="lookup-tool-btn" data-depth="concise" type="button" title="1-2문장 핵심만">🔍 간결</button>
-      <button class="lookup-tool-btn" data-depth="medium" type="button" title="정의 + 원리 + 예시">📖 중간</button>
-      <button class="lookup-tool-btn" data-depth="deep" type="button" title="정의·원리·예시·함정·관련 개념">🔬 깊이</button>
+      <button class="lookup-tool-btn" data-depth="concise" type="button" title="1-2문장 핵심만 (빠르게)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="4" y1="12" x2="14" y2="12"/>
+          <circle cx="19" cy="12" r="1.4" fill="currentColor"/>
+        </svg>
+        <span>간결</span>
+      </button>
+      <span class="lookup-toolbar-divider" aria-hidden="true"></span>
+      <button class="lookup-tool-btn" data-depth="medium" type="button" title="정의 + 원리 + 짧은 예시">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="4" y1="9" x2="20" y2="9"/>
+          <line x1="4" y1="15" x2="14" y2="15"/>
+        </svg>
+        <span>중간</span>
+      </button>
+      <span class="lookup-toolbar-divider" aria-hidden="true"></span>
+      <button class="lookup-tool-btn" data-depth="deep" type="button" title="정의·원리·예시·함정·관련 개념">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="4" y1="6" x2="20" y2="6"/>
+          <line x1="4" y1="12" x2="20" y2="12"/>
+          <line x1="4" y1="18" x2="13" y2="18"/>
+        </svg>
+        <span>깊이</span>
+      </button>
     </div>
 
     <div id="search-modal" class="modal-overlay hidden" aria-hidden="true">
