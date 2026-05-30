@@ -21,6 +21,7 @@ export async function streamTurn(
     messages: ClaudeMessage[];
     onText?: (chunk: string) => void | Promise<void>;
     model?: string;
+    maxTokens?: number;
   },
 ): Promise<{ text: string; usage: { input: number; output: number } }> {
   const { system, messages, onText } = args;
@@ -28,7 +29,7 @@ export async function streamTurn(
   let fullText = "";
   const stream = client.raw.messages.stream({
     model: args.model ?? client.config.model,
-    max_tokens: client.config.maxTokens,
+    max_tokens: args.maxTokens ?? client.config.maxTokens,
     system,
     messages,
   });

@@ -159,6 +159,12 @@ function cacheEls() {
   els.workspaceName = $("workspace-name");
   els.workspaceList = $("workspace-list");
   els.addWsModal = $("add-workspace-modal");
+  // Look-up panel + selection toolbar
+  els.lookupPanel = $("lookup-panel");
+  els.lookupPanelBody = $("lookup-panel-body");
+  els.lookupClose = $("lookup-close");
+  els.lookupClear = $("lookup-clear");
+  els.lookupToolbar = $("lookup-toolbar");
 }
 
 // ──────────────────────────────────────────────────────────
@@ -269,6 +275,9 @@ function wireEvents() {
     els.settingsBtn?.classList.add("hidden");
     document.getElementById("workspace-section")?.classList.add("hidden");
   }
+
+  // Look-up 기능 (사이드 학습)
+  initLookup();
 
   // 휴지통
   if (els.trashOpenBtn) {
@@ -471,6 +480,8 @@ async function loadRoadmapData() {
 
   els.chapterList.innerHTML = `<li class="loading">loading…</li>`;
   els.historyList.innerHTML = `<li class="loading">loading…</li>`;
+  // suggestion 영역은 일단 숨겨두고 chapters 확인 후 결정
+  els.suggestion.classList.remove("hidden");
   els.suggestion.innerHTML = `<div class="loading">🧭 Analyzing trajectory…</div>`;
 
   try {
@@ -485,16 +496,27 @@ async function loadRoadmapData() {
     renderChapters();
     renderHistory();
 
-    // suggestion은 비동기로
-    fetch(`/api/suggest${q}`)
-      .then((r) => r.json())
-      .then((suggestion) => {
-        state.suggestion = suggestion;
-        renderSuggestion();
-      })
-      .catch(() => {
-        els.suggestion.innerHTML = `<div class="empty">suggestion 불러오기 실패</div>`;
-      });
+    // 다음 챕터 카드(suggestion)는 첫 진행 시에만 띄움.
+    // 이미 visited 챕터가 있으면(= 한 번이라도 학습 진행) 노이즈가 되므로 영역 자체 숨김.
+    // 사용자는 그 후엔 사이드바 챕터 리스트에서 직접 선택.
+    const visitedCount = state.chapters.filter(
+      (c) => (c.maxDepth ?? 0) > 0,
+    ).length;
+    if (visitedCount > 0) {
+      els.suggestion.classList.add("hidden");
+      state.suggestion = null;
+    } else {
+      // suggestion은 비동기로
+      fetch(`/api/suggest${q}`)
+        .then((r) => r.json())
+        .then((suggestion) => {
+          state.suggestion = suggestion;
+          renderSuggestion();
+        })
+        .catch(() => {
+          els.suggestion.innerHTML = `<div class="empty">suggestion 불러오기 실패</div>`;
+        });
+    }
   } catch (err) {
     setStatus(`로드맵 데이터 로드 실패: ${err.message}`, "error");
   }
@@ -1720,6 +1742,222 @@ async function submitAddWorkspace() {
     `"${name}" 추가 완료. 지금 이 워크스페이스로 전환할까요? (앱 재시작)`,
   );
   if (switchOk) await window.spiralSettings.switchWorkspace(res.workspace.id);
+}
+
+// ──────────────────────────────────────────────────────────
+// Look-up (사이드 학습 패널)
+//
+// 사용자가 대화 메시지에서 텍스트를 드래그하면 floating mini-toolbar가 뜸.
+// 깊이(간결/중간/깊이) 선택 → 우측 사이드 패널에 SSE 스트리밍으로 답변 추가.
+// 메인 대화 흐름엔 영향 없음.
+// ──────────────────────────────────────────────────────────
+
+const _lookupState = {
+  open: false,
+  cardCount: 0,
+};
+
+function initLookup() {
+  if (!els.messages || !els.lookupToolbar || !els.lookupPanel) return;
+
+  // 메시지 영역 안의 selection 감지
+  els.messages.addEventListener("mouseup", handleSelectionChange);
+  els.messages.addEventListener("keyup", handleSelectionChange);
+  // 외부 클릭 시 toolbar 숨김 (단 toolbar 자체는 제외)
+  document.addEventListener("mousedown", (e) => {
+    if (els.lookupToolbar.contains(e.target)) return;
+    // 잠시 뒤에 selection이 사라졌는지 확인
+    setTimeout(() => {
+      const sel = window.getSelection();
+      const txt = sel?.toString().trim() ?? "";
+      if (!txt || !els.messages.contains(sel.anchorNode)) {
+        hideLookupToolbar();
+      }
+    }, 0);
+  });
+
+  // toolbar 버튼 핸들러
+  els.lookupToolbar.querySelectorAll(".lookup-tool-btn").forEach((b) => {
+    b.addEventListener("mousedown", (e) => {
+      // 클릭 시 selection 해제 방지
+      e.preventDefault();
+    });
+    b.addEventListener("click", () => {
+      const depth = b.dataset.depth;
+      const text = (window.getSelection()?.toString() ?? "").trim();
+      if (!text) return;
+      hideLookupToolbar();
+      runLookup(text, depth);
+    });
+  });
+
+  // 패널 close/clear
+  els.lookupClose?.addEventListener("click", closeLookupPanel);
+  els.lookupClear?.addEventListener("click", () => {
+    if (els.lookupPanelBody) els.lookupPanelBody.innerHTML = "";
+    _lookupState.cardCount = 0;
+  });
+
+  // ESC로 panel 닫기
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && _lookupState.open) {
+      // 다른 모달이 열려있지 않을 때만 (이미 다른 ESC 핸들러가 잡으면 그쪽 우선)
+      const anyModalOpen =
+        document.querySelector(".modal-overlay:not(.hidden)") !== null;
+      if (!anyModalOpen) closeLookupPanel();
+    }
+  });
+}
+
+function handleSelectionChange() {
+  const sel = window.getSelection();
+  if (!sel || sel.isCollapsed) {
+    hideLookupToolbar();
+    return;
+  }
+  const text = sel.toString().trim();
+  if (!text || text.length < 2 || text.length > 400) {
+    hideLookupToolbar();
+    return;
+  }
+  // 메시지 영역 안인지 확인
+  const anchorEl =
+    sel.anchorNode?.nodeType === Node.ELEMENT_NODE
+      ? sel.anchorNode
+      : sel.anchorNode?.parentElement;
+  if (!anchorEl || !els.messages.contains(anchorEl)) {
+    hideLookupToolbar();
+    return;
+  }
+  // selection rect 기준으로 toolbar 위치
+  const rect = sel.getRangeAt(0).getBoundingClientRect();
+  if (rect.width === 0 && rect.height === 0) {
+    hideLookupToolbar();
+    return;
+  }
+  showLookupToolbar(rect);
+}
+
+function showLookupToolbar(rect) {
+  if (!els.lookupToolbar) return;
+  els.lookupToolbar.classList.remove("hidden");
+  // 위치: selection 위쪽 (위 공간 없으면 아래)
+  const tbWidth = els.lookupToolbar.offsetWidth || 220;
+  const tbHeight = els.lookupToolbar.offsetHeight || 36;
+  let top = rect.top - tbHeight - 8;
+  if (top < 12) top = rect.bottom + 8;
+  let left = rect.left + rect.width / 2 - tbWidth / 2;
+  left = Math.max(12, Math.min(window.innerWidth - tbWidth - 12, left));
+  els.lookupToolbar.style.top = `${top}px`;
+  els.lookupToolbar.style.left = `${left}px`;
+}
+
+function hideLookupToolbar() {
+  els.lookupToolbar?.classList.add("hidden");
+}
+
+function openLookupPanel() {
+  document.body.classList.add("lookup-open");
+  els.lookupPanel?.classList.remove("hidden");
+  els.lookupPanel?.setAttribute("aria-hidden", "false");
+  _lookupState.open = true;
+}
+
+function closeLookupPanel() {
+  document.body.classList.remove("lookup-open");
+  els.lookupPanel?.classList.add("hidden");
+  els.lookupPanel?.setAttribute("aria-hidden", "true");
+  _lookupState.open = false;
+}
+
+const DEPTH_LABELS = {
+  concise: "🔍 간결",
+  medium: "📖 중간",
+  deep: "🔬 깊이",
+};
+
+async function runLookup(query, depth) {
+  openLookupPanel();
+  if (!els.lookupPanelBody) return;
+
+  // 카드 생성
+  const card = document.createElement("article");
+  card.className = "lookup-card";
+  card.innerHTML = `
+    <div class="lookup-card-head">
+      <span class="lookup-card-depth">${DEPTH_LABELS[depth] ?? depth}</span>
+      <span class="lookup-card-query" title="${escapeAttr(query)}">${escapeHtml(query)}</span>
+      <div class="lookup-card-actions">
+        <button class="lookup-card-act" data-act="copy" type="button" title="복사">📋</button>
+        <button class="lookup-card-act" data-act="close" type="button" title="삭제">✕</button>
+      </div>
+    </div>
+    <div class="lookup-card-body"><span style="opacity:0.6">…</span></div>
+  `;
+  // 새 카드는 위에 (최신순)
+  els.lookupPanelBody.insertBefore(card, els.lookupPanelBody.firstChild);
+  _lookupState.cardCount++;
+  const bodyEl = card.querySelector(".lookup-card-body");
+
+  // 카드 액션
+  card.querySelectorAll(".lookup-card-act").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const act = btn.dataset.act;
+      if (act === "close") {
+        card.remove();
+        _lookupState.cardCount--;
+      } else if (act === "copy") {
+        const txt = bodyEl?.innerText ?? "";
+        navigator.clipboard?.writeText(txt).then(() => {
+          btn.textContent = "✓";
+          setTimeout(() => (btn.textContent = "📋"), 1200);
+        });
+      }
+    });
+  });
+
+  // 현재 챕터/메시지 맥락 — 가장 최근 메시지 일부를 context로
+  let context = "";
+  if (state?.activeRoadmapId && state?.session?.chapterId) {
+    const lastMsg = state.messages?.[state.messages.length - 1];
+    if (lastMsg?.content) {
+      const head = String(lastMsg.content).slice(0, 600);
+      context = `학습 챕터: ${state.session.chapterId}\n최근 대화 일부:\n${head}`;
+    }
+  }
+
+  // SSE 스트림 수신
+  let acc = "";
+  try {
+    const res = await fetch("/api/lookup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        query,
+        depth,
+        context: context || undefined,
+        model: state.selectedModel ?? undefined,
+      }),
+    });
+    if (!res.ok || !res.body) {
+      bodyEl.textContent = `(요청 실패: ${res.status})`;
+      return;
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      acc += decoder.decode(value, { stream: true });
+      try {
+        bodyEl.innerHTML = marked.parse(acc);
+      } catch {
+        bodyEl.textContent = acc;
+      }
+    }
+  } catch (err) {
+    bodyEl.innerHTML = `<p>(에러: ${escapeHtml(err.message)})</p>`;
+  }
 }
 
 // ──────────────────────────────────────────────────────────

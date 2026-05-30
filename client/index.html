@@ -181,6 +181,25 @@
       <div id="status-bar" class="status-bar"></div>
     </main>
 
+    <aside id="lookup-panel" class="lookup-panel hidden" aria-hidden="true">
+      <header class="lookup-panel-header">
+        <h3>📚 Look-up</h3>
+        <button id="lookup-clear" class="lookup-panel-mini" type="button" title="모두 지우기">지우기</button>
+        <button id="lookup-close" class="lookup-panel-close" type="button" aria-label="닫기">✕</button>
+      </header>
+      <div id="lookup-panel-body" class="lookup-panel-body"></div>
+      <div class="lookup-panel-hint">
+        대화에서 텍스트를 드래그한 뒤 깊이를 선택해 사이드 학습에 추가하세요.
+        여기 내용은 메인 대화에 영향 주지 않습니다.
+      </div>
+    </aside>
+
+    <div id="lookup-toolbar" class="lookup-toolbar hidden" role="toolbar" aria-label="선택 텍스트 Look-up">
+      <button class="lookup-tool-btn" data-depth="concise" type="button" title="1-2문장 핵심만">🔍 간결</button>
+      <button class="lookup-tool-btn" data-depth="medium" type="button" title="정의 + 원리 + 예시">📖 중간</button>
+      <button class="lookup-tool-btn" data-depth="deep" type="button" title="정의·원리·예시·함정·관련 개념">🔬 깊이</button>
+    </div>
+
     <div id="search-modal" class="modal-overlay hidden" aria-hidden="true">
       <div class="modal search-modal" role="dialog" aria-modal="true" aria-labelledby="search-modal-title">
         <div class="search-input-wrap">

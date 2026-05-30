@@ -761,6 +761,73 @@ export function createApi(config: Config) {
   });
 
   // ─────────────────────────────────────────────────────
+  // 5b. Lookup (사이드 학습 — 대화에 추가 안 됨)
+  //     선택한 텍스트를 깊이별로 간결/중간/깊이로 해설.
+  //     SSE 스트리밍.
+  // ─────────────────────────────────────────────────────
+
+  app.post("/lookup", async (c) => {
+    const body = await c.req
+      .json<{
+        query: string;
+        depth?: "concise" | "medium" | "deep";
+        context?: string;
+        model?: string;
+      }>()
+      .catch(() => null);
+    if (!body?.query || body.query.trim().length < 2) {
+      return c.json({ error: "query is required (min 2 chars)" }, 400);
+    }
+    const depth = body.depth ?? "medium";
+
+    const systemByDepth: Record<string, string> = {
+      concise:
+        "사용자가 학습 대화 중에 모르는 개념을 빠르게 확인하려고 한다. " +
+        "1-2 문장으로 핵심만 답한다. 부연 설명·예시·연관 개념 언급 금지. " +
+        "한국어로, 단정적인 정의 위주.",
+      medium:
+        "사용자가 학습 대화 중 모르는 개념을 좀 더 알고 싶어한다. " +
+        "2-3 문단으로 정의 + 핵심 동작 원리 + 짧은 예시 한 개. " +
+        "마크다운 사용 가능. 한국어로. 길어지지 말 것.",
+      deep:
+        "사용자가 학습 대화 중 모르는 개념을 깊이 있게 알고 싶어한다. " +
+        "다음 구조로 마크다운 답변:\n" +
+        "## 한 줄 정의\n## 동작 원리\n## 코드 예시\n## 흔한 함정\n## 관련 개념\n" +
+        "각 섹션 2-4문장 또는 짧은 코드. 한국어. 형식은 정확히 지킬 것.",
+    };
+    const maxTokensByDepth: Record<string, number> = {
+      concise: 280,
+      medium: 700,
+      deep: 2200,
+    };
+
+    const userMessage = body.context
+      ? `**현재 학습 맥락 (참고용)**:\n${body.context.slice(0, 800)}\n\n---\n\n**찾아보려는 표현**:\n\`\`\`\n${body.query}\n\`\`\``
+      : `**찾아보려는 표현**:\n\`\`\`\n${body.query}\n\`\`\``;
+
+    const systemPrompt = systemByDepth[depth] ?? systemByDepth.medium ?? "";
+    const maxTokens = maxTokensByDepth[depth] ?? 700;
+
+    return streamText(c, async (stream) => {
+      try {
+        await streamTurn(client, {
+          system: systemPrompt,
+          messages: [{ role: "user", content: userMessage }],
+          model: body.model,
+          maxTokens,
+          onText: async (chunk) => {
+            await stream.write(chunk);
+          },
+        });
+      } catch (err) {
+        await stream.write(
+          `\n\n[lookup error] ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    });
+  });
+
+  // ─────────────────────────────────────────────────────
   // 6. Session lifecycle
   // ─────────────────────────────────────────────────────
 
