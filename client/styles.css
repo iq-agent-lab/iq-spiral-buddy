@@ -4126,3 +4126,283 @@ button.primary:hover:not(:disabled),
 .lookup-tool-btn:hover[data-depth="concise"] svg { color: #f3d99c; }
 .lookup-tool-btn:hover[data-depth="medium"]  svg { color: #d5dde6; }
 .lookup-tool-btn:hover[data-depth="deep"]    svg { color: #cbb6ff; }
+
+/* ───────────────────── Lookup resize handle + 전체화면 ──────────────────── */
+
+#lookup-resizer {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  right: var(--lookup-w);
+  width: 6px;
+  margin-right: -3px;
+  cursor: col-resize;
+  z-index: 100;
+  background: transparent;
+  transition: background 120ms;
+}
+
+#lookup-resizer.hidden {
+  display: none !important;
+}
+
+#lookup-resizer:hover,
+body.lookup-resizing #lookup-resizer {
+  background: var(--accent, #a9bac5);
+  opacity: 0.5;
+}
+
+body.lookup-resizing {
+  user-select: none;
+  cursor: col-resize;
+}
+
+body.lookup-resizing,
+body.lookup-resizing #lookup-panel {
+  transition: none !important;
+}
+
+/* 전체화면 토글 */
+body.lookup-fullscreen {
+  --lookup-w: calc(100vw - var(--sidebar-w));
+}
+
+body.sidebar-collapsed.lookup-fullscreen {
+  --lookup-w: 100vw;
+}
+
+/* 헤더 spiral 아이콘 */
+.lookup-panel-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: linear-gradient(
+    145deg,
+    rgba(159, 179, 193, 0.12),
+    rgba(178, 155, 240, 0.08)
+  );
+  border: 1px solid rgba(178, 155, 240, 0.18);
+  color: var(--accent, #a9bac5);
+  flex-shrink: 0;
+}
+
+.lookup-panel-icon svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* 아이콘 전용 미니 버튼 (전체화면 토글 등) */
+.lookup-panel-mini.icon-btn {
+  padding: 5px 7px;
+  display: inline-grid;
+  place-items: center;
+}
+
+.lookup-panel-mini.icon-btn svg {
+  width: 13px;
+  height: 13px;
+}
+
+body.lookup-fullscreen .lookup-panel-mini.icon-btn svg {
+  /* 전체화면 일 때 화살표 반전 효과 */
+  transform: rotate(180deg);
+}
+
+/* ───────────────────── 활동 streak 뱃지 + cell tooltip ──────────────────── */
+
+.activity-streak {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  background: rgba(159, 179, 193, 0.1);
+  color: var(--text-dim, #a6b2bb);
+  padding: 1px 6px;
+  border-radius: 4px;
+  min-width: 32px;
+  text-align: center;
+}
+
+.activity-streak.on-fire {
+  background: linear-gradient(135deg, rgba(255, 138, 91, 0.22), rgba(243, 217, 156, 0.18));
+  color: #ffd49e;
+  box-shadow: 0 0 0 1px rgba(255, 138, 91, 0.16) inset;
+}
+
+.trash-open-btn.activity-btn:hover .activity-streak.on-fire {
+  background: linear-gradient(135deg, rgba(255, 138, 91, 0.3), rgba(243, 217, 156, 0.24));
+}
+
+/* activity-cell 커스텀 tooltip */
+.activity-cell {
+  position: relative;
+  cursor: default;
+}
+
+.activity-cell[data-tip]:hover::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(15, 19, 28, 0.97);
+  color: var(--text, #edf3f5);
+  border: 1px solid rgba(148, 169, 190, 0.22);
+  border-radius: 6px;
+  padding: 5px 9px;
+  font-size: 11px;
+  font-family: inherit;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 50;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
+  letter-spacing: 0.01em;
+}
+
+.activity-cell[data-tip]:hover::before {
+  content: "";
+  position: absolute;
+  bottom: calc(100% + 1px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border: 5px solid transparent;
+  border-top-color: rgba(148, 169, 190, 0.22);
+  pointer-events: none;
+  z-index: 49;
+}
+
+.activity-cell[data-tip]:hover {
+  outline: 1.5px solid rgba(255, 255, 255, 0.3);
+  outline-offset: 1px;
+}
+
+/* ───────────────────── 설정 → iq-dev-lab 다운로드 카드 ──────────────────── */
+
+.settings-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 0 10px;
+  color: var(--text-faint, #74818b);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+
+.settings-divider::before,
+.settings-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border-soft, rgba(148, 169, 190, 0.12));
+}
+
+.settings-curated-card {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  background: linear-gradient(
+    145deg,
+    rgba(159, 179, 193, 0.06),
+    rgba(209, 160, 111, 0.04)
+  );
+  border: 1px solid rgba(148, 169, 190, 0.22);
+  color: var(--text, #edf3f5);
+  padding: 12px 14px;
+  border-radius: 8px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 120ms, border-color 120ms, transform 80ms;
+}
+
+.settings-curated-card:hover:not(.downloading):not(.done) {
+  border-color: rgba(169, 186, 197, 0.42);
+  background: linear-gradient(
+    145deg,
+    rgba(159, 179, 193, 0.1),
+    rgba(209, 160, 111, 0.08)
+  );
+}
+
+.settings-curated-card:active:not(.downloading):not(.done) {
+  transform: scale(0.99);
+}
+
+.settings-curated-card.downloading {
+  cursor: progress;
+}
+
+.settings-curated-card.done {
+  border-color: rgba(126, 226, 255, 0.4);
+  background: rgba(126, 226, 255, 0.06);
+}
+
+.settings-curated-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid rgba(169, 186, 197, 0.22);
+  border-radius: 8px;
+  color: var(--accent, #a9bac5);
+  background: rgba(7, 11, 17, 0.66);
+  flex-shrink: 0;
+}
+
+.settings-curated-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.settings-curated-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.settings-curated-text strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.settings-curated-sub {
+  font-size: 11px;
+  color: var(--text-faint, #74818b);
+  line-height: 1.4;
+}
+
+.settings-curated-progress {
+  font-size: 11px;
+  color: var(--text-dim, #a6b2bb);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  margin-top: 8px;
+  flex-basis: 100%;
+}
+
+.settings-wizard-link {
+  width: 100%;
+  background: transparent;
+  border: 0;
+  color: var(--text-dim, #a6b2bb);
+  font-family: inherit;
+  font-size: 12px;
+  padding: 8px 0;
+  cursor: pointer;
+  text-align: center;
+  border-radius: 4px;
+  transition: color 120ms, background 120ms;
+}
+
+.settings-wizard-link:hover {
+  color: var(--text, #edf3f5);
+  background: rgba(159, 179, 193, 0.06);
+}

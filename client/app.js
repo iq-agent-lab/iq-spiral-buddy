@@ -146,6 +146,7 @@ function cacheEls() {
   els.searchInput = $("search-input");
   els.searchResults = $("search-results");
   els.activityOpenBtn = $("activity-open-btn");
+  els.activityStreak = $("activity-streak");
   els.activityModal = $("activity-modal");
   els.activityModalClose = $("activity-modal-close");
   els.activitySummary = $("activity-summary");
@@ -164,6 +165,8 @@ function cacheEls() {
   els.lookupPanelBody = $("lookup-panel-body");
   els.lookupClose = $("lookup-close");
   els.lookupClear = $("lookup-clear");
+  els.lookupExpand = $("lookup-expand");
+  els.lookupResizer = $("lookup-resizer");
   els.lookupToolbar = $("lookup-toolbar");
 }
 
@@ -299,6 +302,7 @@ function wireEvents() {
   });
   // 백그라운드로 휴지통 개수 폴링은 안 함 — 사이드바 갱신마다 같이 fetch
   refreshTrashBadge();
+  refreshActivityBadge();
 
   // 학습 활동 캘린더
   if (els.activityOpenBtn) {
@@ -1391,6 +1395,14 @@ async function initSettings() {
   document
     .getElementById("settings-add-workspace-btn")
     ?.addEventListener("click", openAddWorkspaceModal);
+  document
+    .getElementById("settings-download-curated-card")
+    ?.addEventListener("click", downloadCuratedFromSettings);
+  document
+    .getElementById("settings-open-wizard")
+    ?.addEventListener("click", async () => {
+      await window.spiralSettings.openSetupWizard?.();
+    });
 
   // 새 워크스페이스 모달
   initAddWorkspaceModal();
@@ -1744,6 +1756,70 @@ async function submitAddWorkspace() {
   if (switchOk) await window.spiralSettings.switchWorkspace(res.workspace.id);
 }
 
+/**
+ * 설정 모달 안에서 iq-dev-lab 38개를 한 번에 받기 + 워크스페이스로 자동 등록.
+ * setup wizard 흐름과 동일한 IPC를 재사용한다.
+ */
+async function downloadCuratedFromSettings() {
+  if (!window.spiralSetup || !window.spiralSettings) return;
+  const card = document.getElementById("settings-download-curated-card");
+  const progress = document.getElementById("settings-curated-progress");
+  if (card.classList.contains("downloading") || card.classList.contains("done")) {
+    return;
+  }
+  const parent = await window.spiralSetup.pickParentDir();
+  if (!parent) return;
+
+  card.classList.add("downloading");
+  progress.classList.remove("hidden");
+  progress.textContent = "준비 중…";
+
+  const off = window.spiralSetup.onDownloadProgress((p) => {
+    if (p.phase === "fetching") {
+      progress.textContent = p.message ?? "레포 목록 가져오는 중…";
+    } else if (p.phase === "cloning") {
+      progress.textContent = p.current
+        ? `[${p.done}/${p.total}] ${p.current}`
+        : `${p.total}개 클론 시작…`;
+    } else if (p.phase === "done") {
+      const failed = p.failed > 0 ? ` (${p.failed}개 실패)` : "";
+      progress.textContent = `✓ ${p.done - p.failed}/${p.total}개 완료${failed}`;
+    }
+  });
+
+  const res = await window.spiralSetup.downloadCurated({ parentDir: parent });
+  off?.();
+  card.classList.remove("downloading");
+
+  if (!res?.ok) {
+    progress.textContent = `✗ 실패: ${res?.error ?? "unknown"}`;
+    return;
+  }
+  card.classList.add("done");
+  progress.textContent = `✓ ${res.count}개 완료 — 워크스페이스 등록 중…`;
+
+  // 자동으로 워크스페이스 등록 (sourceKind: dir로 기존 디렉토리 지정)
+  const wsRes = await window.spiralSettings.addWorkspace({
+    name: "iq-dev-lab",
+    sourceKind: "dir",
+    localPath: res.targetDir,
+  });
+  if (!wsRes?.ok) {
+    progress.textContent = `✓ 다운로드 완료, 단 워크스페이스 등록 실패: ${wsRes?.error ?? ""}`;
+    return;
+  }
+  _settingsCache = await window.spiralSettings.get();
+  renderWorkspaceListInSettings();
+  renderWorkspaceSelector();
+  progress.textContent = `✓ 다운로드 + 워크스페이스 등록 완료`;
+  const switchOk = window.confirm(
+    `"iq-dev-lab" 워크스페이스로 지금 전환할까요? (앱 재시작)`,
+  );
+  if (switchOk) {
+    await window.spiralSettings.switchWorkspace(wsRes.workspace.id);
+  }
+}
+
 // ──────────────────────────────────────────────────────────
 // Look-up (사이드 학습 패널)
 //
@@ -1790,12 +1866,61 @@ function initLookup() {
     });
   });
 
-  // 패널 close/clear
+  // 패널 close/clear/expand
   els.lookupClose?.addEventListener("click", closeLookupPanel);
   els.lookupClear?.addEventListener("click", () => {
     if (els.lookupPanelBody) els.lookupPanelBody.innerHTML = "";
     _lookupState.cardCount = 0;
   });
+  els.lookupExpand?.addEventListener("click", () => {
+    document.body.classList.toggle("lookup-fullscreen");
+  });
+
+  // 패널 너비 조절 (사이드바와 동일 패턴, 우측에서 드래그)
+  const LOOKUP_WIDTH_KEY = "spiral-buddy:lookup-width";
+  const LOOKUP_DEFAULT = 400;
+  const LOOKUP_MIN = 280;
+  const LOOKUP_MAX = 760;
+  const savedLookupW = localStorage.getItem(LOOKUP_WIDTH_KEY);
+  if (savedLookupW) {
+    const w = Math.max(
+      LOOKUP_MIN,
+      Math.min(LOOKUP_MAX, parseInt(savedLookupW, 10) || LOOKUP_DEFAULT),
+    );
+    // 패널이 열려 있을 때만 적용. 처음엔 width 0이므로 변수만 저장.
+    document.body.style.setProperty("--lookup-w-saved", `${w}px`);
+  }
+  if (els.lookupResizer) {
+    let dragging = false;
+    els.lookupResizer.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      dragging = true;
+      document.body.classList.add("lookup-resizing");
+    });
+    document.addEventListener("mousemove", (e) => {
+      if (!dragging) return;
+      // viewport 우측 끝에서 mouseX를 빼면 panel width
+      const w = Math.max(
+        LOOKUP_MIN,
+        Math.min(LOOKUP_MAX, window.innerWidth - e.clientX),
+      );
+      document.body.style.setProperty("--lookup-w", `${w}px`);
+      document.body.style.setProperty("--lookup-w-saved", `${w}px`);
+    });
+    document.addEventListener("mouseup", () => {
+      if (!dragging) return;
+      dragging = false;
+      document.body.classList.remove("lookup-resizing");
+      const w = document.body.style.getPropertyValue("--lookup-w-saved");
+      if (w) localStorage.setItem(LOOKUP_WIDTH_KEY, w.trim());
+    });
+    // 더블클릭 → 기본값
+    els.lookupResizer.addEventListener("dblclick", () => {
+      document.body.style.setProperty("--lookup-w", `${LOOKUP_DEFAULT}px`);
+      document.body.style.setProperty("--lookup-w-saved", `${LOOKUP_DEFAULT}px`);
+      localStorage.setItem(LOOKUP_WIDTH_KEY, String(LOOKUP_DEFAULT));
+    });
+  }
 
   // ESC로 panel 닫기
   document.addEventListener("keydown", (e) => {
@@ -1856,15 +1981,23 @@ function hideLookupToolbar() {
 }
 
 function openLookupPanel() {
+  // 저장된 너비 복원
+  const saved = document.body.style.getPropertyValue("--lookup-w-saved");
+  if (saved) {
+    document.body.style.setProperty("--lookup-w", saved.trim());
+  }
   document.body.classList.add("lookup-open");
   els.lookupPanel?.classList.remove("hidden");
+  els.lookupResizer?.classList.remove("hidden");
   els.lookupPanel?.setAttribute("aria-hidden", "false");
   _lookupState.open = true;
 }
 
 function closeLookupPanel() {
   document.body.classList.remove("lookup-open");
+  document.body.classList.remove("lookup-fullscreen");
   els.lookupPanel?.classList.add("hidden");
+  els.lookupResizer?.classList.add("hidden");
   els.lookupPanel?.setAttribute("aria-hidden", "true");
   _lookupState.open = false;
 }
@@ -2060,6 +2193,55 @@ function renderTrashList(entries) {
 // 학습 활동 캘린더 (contribution graph)
 // ──────────────────────────────────────────────────────────
 
+/**
+ * 사이드바 활동 버튼의 streak 뱃지 갱신.
+ * 오늘 또는 어제까지 끊김 없이 학습한 일수.
+ */
+async function refreshActivityBadge() {
+  if (!els.activityStreak) return;
+  try {
+    const data = await fetch("/api/activity?days=90").then((r) => r.json());
+    const byDate = data.byDate ?? {};
+    const total = data.total ?? 0;
+    // 오늘부터 거꾸로 연속 일수
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const oneDay = 86400000;
+    let streak = 0;
+    for (let i = 0; i < 90; i++) {
+      const ds = new Date(today.getTime() - i * oneDay)
+        .toISOString()
+        .slice(0, 10);
+      if ((byDate[ds] ?? 0) > 0) streak++;
+      else if (i === 0) {
+        // 오늘 0이면 어제부터 streak (오늘 아직 학습 안 한 경우)
+        continue;
+      } else break;
+    }
+    if (streak > 0) {
+      els.activityStreak.textContent = `🔥 ${streak}일`;
+      els.activityStreak.classList.add("on-fire");
+      els.activityOpenBtn?.setAttribute(
+        "title",
+        `학습 활동 — ${streak}일 연속 (총 나선 ${total}개)`,
+      );
+    } else if (total > 0) {
+      els.activityStreak.textContent = `${total}🌀`;
+      els.activityStreak.classList.remove("on-fire");
+      els.activityOpenBtn?.setAttribute(
+        "title",
+        `학습 활동 — 총 나선 ${total}개 (오늘 학습으로 streak 시작!)`,
+      );
+    } else {
+      els.activityStreak.textContent = "—";
+      els.activityStreak.classList.remove("on-fire");
+      els.activityOpenBtn?.setAttribute("title", "학습 활동 — 아직 기록 없음");
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 async function openActivityModal() {
   if (!els.activityModal) return;
   els.activityModal.classList.remove("hidden");
@@ -2133,8 +2315,14 @@ function renderActivity(data) {
       } else {
         runningStreak = 0;
       }
+      // 한국어 날짜 + "나선" 용어로 tooltip
+      const koDate = `${date.getMonth() + 1}월 ${date.getDate()}일 (${["일", "월", "화", "수", "목", "금", "토"][date.getDay()]})`;
+      const tip =
+        count === 0
+          ? `${koDate} · 휴식`
+          : `${koDate} · 나선 ${count}개${count >= 3 ? " 🔥" : ""}`;
       cells.push(
-        `<div class="activity-cell" data-level="${level(count)}" title="${dateStr}: ${count}개 노트"></div>`,
+        `<div class="activity-cell" data-level="${level(count)}" data-tip="${escapeAttr(tip)}"></div>`,
       );
     }
   }
@@ -2163,15 +2351,15 @@ function renderActivity(data) {
   els.activityMonthLabels.style.gridTemplateColumns = `repeat(${weeks}, 1fr)`;
   els.activityMonthLabels.innerHTML = monthLabels.join("");
 
-  // 요약
+  // 요약 — "나선" 용어로
   const depthSummary = Object.entries(byDepth)
     .sort(([a], [b]) => Number(a) - Number(b))
-    .map(([d, n]) => `<span class="activity-stat">d${d}: <strong>${n}</strong></span>`)
+    .map(([d, n]) => `<span class="activity-stat">d${d} 나선: <strong>${n}</strong></span>`)
     .join("");
   els.activitySummary.innerHTML = `
-    <span class="activity-stat">총 노트: <strong>${totalNotes}</strong></span>
+    <span class="activity-stat">🌀 총 나선: <strong>${totalNotes}</strong></span>
     <span class="activity-stat">활동일 (1년): <strong>${activeDays}</strong></span>
-    <span class="activity-stat">현재 연속: <strong>${currentStreak}일</strong></span>
+    <span class="activity-stat">🔥 현재 연속: <strong>${currentStreak}일</strong></span>
     <span class="activity-stat">최장 연속: <strong>${longestStreak}일</strong></span>
     ${depthSummary}
   `;
@@ -2465,11 +2653,12 @@ function openDeletePopover(anchorEl, target) {
         alert(`삭제 실패: ${err.error ?? res.status}`);
         return;
       }
-      // 챕터 목록 + 사이드바 진도/배지 + 휴지통 뱃지 모두 갱신
+      // 챕터 목록 + 사이드바 진도/배지 + 휴지통/활동 뱃지 모두 갱신
       await Promise.all([
         loadRoadmapData(),
         refreshSidebarRoadmaps(),
         refreshTrashBadge(),
+        refreshActivityBadge(),
       ]);
     } catch (err) {
       alert(`삭제 실패: ${err.message}`);
@@ -2685,11 +2874,12 @@ async function endSession() {
     enableSessionUi(false);
     updateTopbar();
 
-    // 진도 갱신
+    // 진도 + 활동 streak 갱신
     const roadmaps = await fetch("/api/roadmaps").then((r) => r.json());
     state.roadmaps = Array.isArray(roadmaps) ? roadmaps : [];
     renderRoadmapSelector();
     await loadRoadmapData();
+    refreshActivityBadge();
     setStatus("");
   } catch (err) {
     card.classList.add("error");

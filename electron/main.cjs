@@ -476,6 +476,20 @@ ipcMain.handle("settings:get", () => {
   };
 });
 
+/**
+ * 초기 setup wizard를 다시 띄움. 사용자가 처음 설치 시 iq-dev-lab 받기를
+ * 깜박했거나 다른 옵션을 다시 시도하고 싶을 때.
+ * 메인 윈도우는 그대로 두고 setup window만 별도 모달처럼 띄움.
+ */
+ipcMain.handle("settings:open-setup-wizard", () => {
+  if (setupWindow && !setupWindow.isDestroyed()) {
+    setupWindow.focus();
+    return { ok: true };
+  }
+  createSetupWindow();
+  return { ok: true };
+});
+
 ipcMain.handle("settings:update-api-key", (_e, { apiKey }) => {
   if (!apiKey?.startsWith("sk-")) {
     return { ok: false, error: "API 키는 'sk-'로 시작해야 합니다." };
