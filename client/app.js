@@ -1866,6 +1866,20 @@ function initLookup() {
     });
   });
 
+  // topbar 토글 버튼 (다시 열기 진입점)
+  document.getElementById("lookup-toggle")?.addEventListener("click", () => {
+    if (_lookupState.open) closeLookupPanel();
+    else openLookupPanel();
+  });
+  // Cmd/Ctrl+L 토글
+  document.addEventListener("keydown", (e) => {
+    if ((e.metaKey || e.ctrlKey) && (e.key === "l" || e.key === "L")) {
+      e.preventDefault();
+      if (_lookupState.open) closeLookupPanel();
+      else openLookupPanel();
+    }
+  });
+
   // 패널 close/clear/expand
   els.lookupClose?.addEventListener("click", closeLookupPanel);
   els.lookupClear?.addEventListener("click", () => {
@@ -2002,10 +2016,18 @@ function closeLookupPanel() {
   _lookupState.open = false;
 }
 
-const DEPTH_LABELS = {
-  concise: "🔍 간결",
-  medium: "📖 중간",
-  deep: "🔬 깊이",
+const DEPTH_ICONS = {
+  concise:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="12" x2="14" y2="12"/><circle cx="19" cy="12" r="1.4" fill="currentColor"/></svg>',
+  medium:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="14" y2="15"/></svg>',
+  deep:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="13" y2="18"/></svg>',
+};
+const DEPTH_LABEL_TEXT = {
+  concise: "간결",
+  medium: "중간",
+  deep: "깊이",
 };
 
 async function runLookup(query, depth) {
@@ -2017,7 +2039,10 @@ async function runLookup(query, depth) {
   card.className = "lookup-card";
   card.innerHTML = `
     <div class="lookup-card-head">
-      <span class="lookup-card-depth">${DEPTH_LABELS[depth] ?? depth}</span>
+      <span class="lookup-card-depth" data-depth="${escapeAttr(depth)}">
+        <span class="lookup-card-depth-icon">${DEPTH_ICONS[depth] ?? ""}</span>
+        <span>${DEPTH_LABEL_TEXT[depth] ?? depth}</span>
+      </span>
       <span class="lookup-card-query" title="${escapeAttr(query)}">${escapeHtml(query)}</span>
       <div class="lookup-card-actions">
         <button class="lookup-card-act" data-act="copy" type="button" title="복사">📋</button>
@@ -2218,15 +2243,16 @@ async function refreshActivityBadge() {
         continue;
       } else break;
     }
+    const flameSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>`;
     if (streak > 0) {
-      els.activityStreak.textContent = `🔥 ${streak}일`;
+      els.activityStreak.innerHTML = `<span class="streak-flame">${flameSvg}</span><span class="streak-num">${streak}</span>`;
       els.activityStreak.classList.add("on-fire");
       els.activityOpenBtn?.setAttribute(
         "title",
         `학습 활동 — ${streak}일 연속 (총 나선 ${total}개)`,
       );
     } else if (total > 0) {
-      els.activityStreak.textContent = `${total}🌀`;
+      els.activityStreak.innerHTML = `<span class="streak-num">${total}</span>`;
       els.activityStreak.classList.remove("on-fire");
       els.activityOpenBtn?.setAttribute(
         "title",
@@ -2240,6 +2266,33 @@ async function refreshActivityBadge() {
   } catch {
     /* ignore */
   }
+}
+
+// 글로벌 tooltip 요소 — 활동 셀 등에서 공용. fixed 포지션이라 부모 overflow 영향 X.
+let _activityTooltip = null;
+function showActivityTooltip(text, anchorEl) {
+  if (!_activityTooltip) {
+    _activityTooltip = document.createElement("div");
+    _activityTooltip.className = "activity-tooltip";
+    document.body.appendChild(_activityTooltip);
+  }
+  _activityTooltip.textContent = text;
+  _activityTooltip.classList.add("visible");
+  // 위치: anchor 위쪽, viewport 안 fit
+  const rect = anchorEl.getBoundingClientRect();
+  // 먼저 표시해서 크기 측정
+  _activityTooltip.style.left = "0px";
+  _activityTooltip.style.top = "0px";
+  const tipRect = _activityTooltip.getBoundingClientRect();
+  let left = rect.left + rect.width / 2 - tipRect.width / 2;
+  left = Math.max(8, Math.min(window.innerWidth - tipRect.width - 8, left));
+  let top = rect.top - tipRect.height - 8;
+  if (top < 8) top = rect.bottom + 8; // 위 공간 없으면 아래
+  _activityTooltip.style.left = `${left}px`;
+  _activityTooltip.style.top = `${top}px`;
+}
+function hideActivityTooltip() {
+  _activityTooltip?.classList.remove("visible");
 }
 
 async function openActivityModal() {
@@ -2261,6 +2314,7 @@ function closeActivityModal() {
   if (!els.activityModal) return;
   els.activityModal.classList.add("hidden");
   els.activityModal.setAttribute("aria-hidden", "true");
+  hideActivityTooltip();
 }
 
 function renderActivity(data) {
@@ -2336,6 +2390,38 @@ function renderActivity(data) {
 
   els.activityGrid.style.gridTemplateColumns = `repeat(${weeks}, 1fr)`;
   els.activityGrid.innerHTML = cells.join("");
+
+  // 글로벌 tooltip + wheel → horizontal scroll (한 번만 attach)
+  if (!els.activityGrid._wired) {
+    els.activityGrid.addEventListener("mouseover", (e) => {
+      const cell = e.target.closest(".activity-cell[data-tip]");
+      if (cell) showActivityTooltip(cell.dataset.tip, cell);
+    });
+    els.activityGrid.addEventListener("mouseout", (e) => {
+      const cell = e.target.closest(".activity-cell[data-tip]");
+      if (cell && !cell.contains(e.relatedTarget)) hideActivityTooltip();
+    });
+    // 오른쪽 끝(최신)에서 시작 + 휠로 좌우 이동
+    const wrap = document.getElementById("activity-grid-wrap");
+    if (wrap) {
+      wrap.addEventListener("wheel", (e) => {
+        // 수직 휠을 수평으로 흘려보냄 (shift 휠은 그대로)
+        if (Math.abs(e.deltaY) > Math.abs(e.deltaX) && !e.shiftKey) {
+          e.preventDefault();
+          wrap.scrollLeft += e.deltaY;
+          hideActivityTooltip();
+        }
+      }, { passive: false });
+    }
+    els.activityGrid._wired = true;
+  }
+  // 항상 최신(우측 끝)으로 스크롤해서 시작
+  const wrap = document.getElementById("activity-grid-wrap");
+  if (wrap) {
+    requestAnimationFrame(() => {
+      wrap.scrollLeft = wrap.scrollWidth;
+    });
+  }
 
   // 월 레이블 (대략 매 4주마다)
   const monthLabels = [];

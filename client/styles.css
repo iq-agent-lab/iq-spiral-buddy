@@ -4235,49 +4235,120 @@ body.lookup-fullscreen .lookup-panel-mini.icon-btn svg {
   background: linear-gradient(135deg, rgba(255, 138, 91, 0.3), rgba(243, 217, 156, 0.24));
 }
 
-/* activity-cell 커스텀 tooltip */
+/* activity-cell — 깜빡임 방지를 위해 ::after pseudo는 쓰지 않고
+   JS가 fixed 글로벌 tooltip을 표시한다. cell 자체는 hover 외곽만 강조. */
 .activity-cell {
-  position: relative;
   cursor: default;
+  transition: outline-color 80ms;
 }
 
-.activity-cell[data-tip]:hover::after {
-  content: attr(data-tip);
-  position: absolute;
-  bottom: calc(100% + 6px);
-  left: 50%;
-  transform: translateX(-50%);
+.activity-cell[data-tip]:hover {
+  outline: 1.5px solid rgba(255, 255, 255, 0.34);
+  outline-offset: 1px;
+}
+
+/* 글로벌 활동 tooltip (JS로 위치 갱신, body 직속 → overflow 영향 없음) */
+.activity-tooltip {
+  position: fixed;
+  z-index: 2000;
   background: rgba(15, 19, 28, 0.97);
   color: var(--text, #edf3f5);
   border: 1px solid rgba(148, 169, 190, 0.22);
   border-radius: 6px;
   padding: 5px 9px;
-  font-size: 11px;
+  font-size: 10.5px;
   font-family: inherit;
   white-space: nowrap;
   pointer-events: none;
-  z-index: 50;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
   letter-spacing: 0.01em;
+  opacity: 0;
+  transition: opacity 100ms;
 }
 
-.activity-cell[data-tip]:hover::before {
-  content: "";
-  position: absolute;
-  bottom: calc(100% + 1px);
-  left: 50%;
-  transform: translateX(-50%);
-  width: 0;
-  height: 0;
-  border: 5px solid transparent;
-  border-top-color: rgba(148, 169, 190, 0.22);
-  pointer-events: none;
-  z-index: 49;
+.activity-tooltip.visible {
+  opacity: 1;
 }
 
-.activity-cell[data-tip]:hover {
-  outline: 1.5px solid rgba(255, 255, 255, 0.3);
-  outline-offset: 1px;
+/* ───────────────────── Look-up 카드 depth 라벨 (SVG + 텍스트) ──────────── */
+
+.lookup-card-depth {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--bg-elev, #121821);
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  font-size: 10px;
+}
+
+.lookup-card-depth-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lookup-card-depth-icon svg {
+  width: 12px;
+  height: 12px;
+}
+
+.lookup-card-depth[data-depth="concise"] .lookup-card-depth-icon { color: #e3c787; }
+.lookup-card-depth[data-depth="medium"]  .lookup-card-depth-icon { color: #b7c5d2; }
+.lookup-card-depth[data-depth="deep"]    .lookup-card-depth-icon { color: #b29bf0; }
+
+/* ───────────────────── Streak flame SVG (이모지 제거) ───────────────── */
+
+.activity-streak {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 5px;
+  font-size: 10px;
+  line-height: 1.1;
+  min-width: 0;
+}
+
+.streak-flame {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.streak-flame svg {
+  width: 10px;
+  height: 10px;
+}
+
+.streak-num {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.activity-streak.on-fire .streak-flame {
+  color: #ff8a5b;
+}
+
+/* ───────────────────── 활동 모달 글자 크기 다듬기 ────────────────── */
+
+.activity-summary {
+  font-size: 11px;
+  gap: 12px;
+}
+
+.activity-stat strong {
+  font-size: 12px;
+}
+
+.activity-month-labels {
+  font-size: 9px;
+}
+
+.activity-legend {
+  font-size: 9px;
 }
 
 /* ───────────────────── 설정 → iq-dev-lab 다운로드 카드 ──────────────────── */
