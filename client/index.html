@@ -236,8 +236,7 @@
             <line x1="3" y1="21" x2="10" y2="14"/>
           </svg>
         </button>
-        <button id="lookup-clear" class="lookup-panel-mini" type="button" title="모두 지우기">지우기</button>
-        <button id="lookup-close" class="lookup-panel-close" type="button" aria-label="닫기">✕</button>
+        <button id="lookup-clear" class="lookup-panel-mini" type="button" title="모든 카드 지우기">전체 지우기</button>
       </header>
       <div id="lookup-panel-body" class="lookup-panel-body"></div>
       <div class="lookup-panel-hint">
@@ -304,13 +303,14 @@
           <div id="activity-grid" class="activity-grid"></div>
         </div>
         <div class="activity-legend">
-          <span>적음</span>
+          <span title="휴식 (0)">0</span>
           <span class="activity-cell" data-level="0"></span>
-          <span class="activity-cell" data-level="1"></span>
-          <span class="activity-cell" data-level="2"></span>
-          <span class="activity-cell" data-level="3"></span>
-          <span class="activity-cell" data-level="4"></span>
-          <span>많음</span>
+          <span class="activity-cell" data-level="1" title="가볍게 (1–2)"></span>
+          <span class="activity-cell" data-level="2" title="보통 (3–5)"></span>
+          <span class="activity-cell" data-level="3" title="몰입 (6–10)"></span>
+          <span class="activity-cell" data-level="4" title="집중 (11–19)"></span>
+          <span class="activity-cell" data-level="5" title="대규모 (20+)"></span>
+          <span title="대규모 (20+)">20+</span>
         </div>
       </div>
     </div>
@@ -383,7 +383,10 @@
           <div class="settings-divider"><span>처음부터 다시</span></div>
 
           <button id="settings-open-wizard" class="settings-wizard-link" type="button">
-            🌀 초기 설정 마법사 다시 열기
+            <svg class="wizard-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 12 m0 0 a1 1 0 0 1 2 0 a2 2 0 0 1 -4 0 a3 3 0 0 1 6 0 a4 4 0 0 1 -8 0 a5 5 0 0 1 10 0"/>
+            </svg>
+            <span>초기 설정 마법사 다시 열기</span>
           </button>
           <div class="settings-hint" style="margin-top: 4px;">
             워크스페이스마다 vault 안의 별도 폴더에 노트가 저장되어 섞이지 않습니다.

@@ -171,7 +171,6 @@ function cacheEls() {
   // Look-up panel + selection toolbar
   els.lookupPanel = $("lookup-panel");
   els.lookupPanelBody = $("lookup-panel-body");
-  els.lookupClose = $("lookup-close");
   els.lookupClear = $("lookup-clear");
   els.lookupExpand = $("lookup-expand");
   els.lookupResizer = $("lookup-resizer");
@@ -853,7 +852,12 @@ function renderRoadmapSelector() {
     parts.push(curated.map(roadmapItemHtml).join(""));
   }
 
-  if (state.curatedOrg) {
+  // "받기 가능 보기" 토글은 제거됨 (v0.5.20) — 설정의 한 번에 받기로 대체.
+  // 디버그/수동 받기 시에만 토글 켜기: localStorage.spiral-buddy:show-available = "1"
+  const showAvailableEnabled =
+    typeof localStorage !== "undefined" &&
+    localStorage.getItem("spiral-buddy:show-available") === "1";
+  if (state.curatedOrg && showAvailableEnabled) {
     const toggleLabel = state.showAvailable
       ? `▼ 받기 가능 숨기기`
       : `▶ 받기 가능 보기 (${state.curatedAvailable.length || "?"})`;
@@ -1933,8 +1937,7 @@ function initLookup() {
     }
   });
 
-  // 패널 close/clear/expand
-  els.lookupClose?.addEventListener("click", closeLookupPanel);
+  // 패널 clear/expand (X 닫기는 제거됨 — 상단 토글 또는 Cmd+L로 닫기)
   els.lookupClear?.addEventListener("click", () => {
     if (els.lookupPanelBody) els.lookupPanelBody.innerHTML = "";
     _lookupState.cardCount = 0;
@@ -2048,16 +2051,29 @@ function hideLookupToolbar() {
 }
 
 function openLookupPanel() {
-  // 저장된 너비 복원
-  const saved = document.body.style.getPropertyValue("--lookup-w-saved");
-  if (saved) {
-    document.body.style.setProperty("--lookup-w", saved.trim());
+  // 저장된 너비 복원 — 최소 280px 보장 (예전 작은 값 남아있을 수 있음)
+  const saved = (document.body.style.getPropertyValue("--lookup-w-saved") || "").trim();
+  const savedPx = parseInt(saved, 10);
+  if (Number.isFinite(savedPx) && savedPx >= 280) {
+    document.body.style.setProperty("--lookup-w", `${savedPx}px`);
+  } else {
+    // inline --lookup-w 제거 → CSS의 body.lookup-open { --lookup-w: 400px } 적용
+    document.body.style.removeProperty("--lookup-w");
   }
   document.body.classList.add("lookup-open");
   els.lookupPanel?.classList.remove("hidden");
   els.lookupResizer?.classList.remove("hidden");
   els.lookupPanel?.setAttribute("aria-hidden", "false");
   _lookupState.open = true;
+
+  // 좌측 사이드바 자동 접기 — 공간 확보 (이미 접혀 있으면 무시).
+  // 사용자가 직접 다시 펼치면 거기에 맡김 (다시 자동 접지 않음 — 이 panel-open 동작 1회만).
+  if (!document.body.classList.contains("sidebar-collapsed")) {
+    document.body.classList.add("sidebar-collapsed");
+    try {
+      localStorage.setItem("spiral-buddy:sidebar-collapsed", "1");
+    } catch {}
+  }
 }
 
 function closeLookupPanel() {
@@ -2068,6 +2084,10 @@ function closeLookupPanel() {
   els.lookupPanel?.setAttribute("aria-hidden", "true");
   _lookupState.open = false;
 }
+
+// ─── 공통 SVG 아이콘 (이모지 → lucide 통일) ───
+const FLAME_SVG_INLINE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>`;
+const SPIRAL_SVG_INLINE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 12 m0 0 a1 1 0 0 1 2 0 a2 2 0 0 1 -4 0 a3 3 0 0 1 6 0 a4 4 0 0 1 -8 0 a5 5 0 0 1 10 0"/></svg>`;
 
 const DEPTH_ICONS = {
   concise:
@@ -2296,9 +2316,13 @@ async function refreshActivityBadge() {
         continue;
       } else break;
     }
-    const flameSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>`;
+    // streak 티어: 효과 강도 (CSS animation 분기용)
+    // tier 1 (1-2일) · tier 2 (3-6일) · tier 3 (7-13일) · tier 4 (14-29일) · tier 5 (30일+)
+    const streakTier =
+      streak >= 30 ? 5 : streak >= 14 ? 4 : streak >= 7 ? 3 : streak >= 3 ? 2 : streak >= 1 ? 1 : 0;
+    els.activityStreak.dataset.tier = String(streakTier);
     if (streak > 0) {
-      els.activityStreak.innerHTML = `<span class="streak-flame">${flameSvg}</span><span class="streak-num">${streak}</span>`;
+      els.activityStreak.innerHTML = `<span class="streak-flame">${FLAME_SVG_INLINE}</span><span class="streak-num">${streak}</span>`;
       els.activityStreak.classList.add("on-fire");
       els.activityOpenBtn?.setAttribute(
         "title",
@@ -2387,16 +2411,27 @@ function renderActivity(data) {
 
   const weeks = Math.ceil((today.getTime() - gridStart.getTime()) / oneDay / 7) + 1;
   const cells = [];
-  // depth 분포 계산 위해 최댓값
-  const counts = Object.values(byDate);
-  const max = counts.length ? Math.max(...counts) : 0;
+  // 절대값 기준 — 하루 20개 이상 = 최고 강도. 학습 강도 5단계로 세분화.
+  // tier 1: 1-2개 (가벼운 복습)
+  // tier 2: 3-5개 (보통)
+  // tier 3: 6-10개 (몰입)
+  // tier 4: 11-19개 (집중 학습일)
+  // tier 5: 20+ (대규모 학습 · 글로우)
   const level = (n) => {
     if (n === 0) return 0;
-    if (max <= 1) return 4;
-    if (n >= max * 0.75) return 4;
-    if (n >= max * 0.5) return 3;
-    if (n >= max * 0.25) return 2;
+    if (n >= 20) return 5;
+    if (n >= 11) return 4;
+    if (n >= 6) return 3;
+    if (n >= 3) return 2;
     return 1;
+  };
+  // 라벨 텍스트 (tooltip 의미 보강용)
+  const levelLabel = (n) => {
+    if (n >= 20) return "대규모";
+    if (n >= 11) return "집중";
+    if (n >= 6) return "몰입";
+    if (n >= 3) return "보통";
+    return "가볍게";
   };
 
   // 활성 일수
@@ -2422,12 +2457,12 @@ function renderActivity(data) {
       } else {
         runningStreak = 0;
       }
-      // 한국어 날짜 + "나선" 용어로 tooltip
+      // 한국어 날짜 + "나선" 용어로 tooltip — 강도 라벨 포함
       const koDate = `${date.getMonth() + 1}월 ${date.getDate()}일 (${["일", "월", "화", "수", "목", "금", "토"][date.getDay()]})`;
       const tip =
         count === 0
           ? `${koDate} · 휴식`
-          : `${koDate} · 나선 ${count}개${count >= 3 ? " 🔥" : ""}`;
+          : `${koDate} · 나선 ${count}개 · ${levelLabel(count)}`;
       cells.push(
         `<div class="activity-cell" data-level="${level(count)}" data-tip="${escapeAttr(tip)}"></div>`,
       );
@@ -2496,9 +2531,9 @@ function renderActivity(data) {
     .map(([d, n]) => `<span class="activity-stat">d${d} 나선: <strong>${n}</strong></span>`)
     .join("");
   els.activitySummary.innerHTML = `
-    <span class="activity-stat">🌀 총 나선: <strong>${totalNotes}</strong></span>
+    <span class="activity-stat"><span class="stat-ic stat-ic-spiral">${SPIRAL_SVG_INLINE}</span>총 나선: <strong>${totalNotes}</strong></span>
     <span class="activity-stat">활동일 (1년): <strong>${activeDays}</strong></span>
-    <span class="activity-stat">🔥 현재 연속: <strong>${currentStreak}일</strong></span>
+    <span class="activity-stat"><span class="stat-ic stat-ic-flame">${FLAME_SVG_INLINE}</span>현재 연속: <strong>${currentStreak}일</strong></span>
     <span class="activity-stat">최장 연속: <strong>${longestStreak}일</strong></span>
     ${depthSummary}
   `;
