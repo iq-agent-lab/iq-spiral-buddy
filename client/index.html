@@ -532,7 +532,8 @@
               <input id="settings-llm-key" type="password" placeholder="API Key" autocomplete="off" />
             </div>
             <div class="settings-row" id="settings-llm-model-row">
-              <input id="settings-llm-model" type="text" placeholder="모델 ID (예: gpt-5.1)" autocomplete="off" />
+              <input id="settings-llm-model" type="text" list="settings-llm-model-list" placeholder="모델 ID — 목록에서 선택하거나 직접 입력" autocomplete="off" />
+              <datalist id="settings-llm-model-list"></datalist>
             </div>
             <div class="settings-hint" id="settings-llm-hint"></div>
           </div>

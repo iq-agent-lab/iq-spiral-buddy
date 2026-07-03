@@ -2512,15 +2512,30 @@ function openSettingsModal() {
   document.getElementById("settings-vault-path").value =
     _settingsCache.vaultPath ?? "";
 
-  // 모델 목록은 state.models에서 (이미 메인앱에 로드됨)
+  // 모델 목록 — anthropic: 서버 목록(state.models).
+  // v0.6 멀티 LLM: 비-anthropic 프로바이더면 해당 프리셋의 모델 목록으로 전환
+  // (저장된 모델이 목록에 없으면 함께 포함 — 직접 입력한 모델 보존).
   const modelSel = document.getElementById("settings-model");
   if (modelSel) {
-    modelSel.innerHTML = (state.models ?? [])
-      .map(
-        (m) =>
-          `<option value="${escapeAttr(m.id)}"${m.id === _settingsCache.model ? " selected" : ""}>${escapeHtml(m.label ?? m.id)}</option>`,
-      )
-      .join("");
+    const llmProv = _settingsCache?.llmProvider ?? "anthropic";
+    if (llmProv !== "anthropic") {
+      const preset = LLM_PRESETS.find((p) => p.id === llmProv);
+      const current = _settingsCache?.llmModel ?? "";
+      const ids = [...new Set([...(preset?.models ?? []), current].filter(Boolean))];
+      modelSel.innerHTML = ids
+        .map(
+          (id) =>
+            `<option value="${escapeAttr(id)}"${id === current ? " selected" : ""}>${escapeHtml(id)}</option>`,
+        )
+        .join("");
+    } else {
+      modelSel.innerHTML = (state.models ?? [])
+        .map(
+          (m) =>
+            `<option value="${escapeAttr(m.id)}"${m.id === _settingsCache.model ? " selected" : ""}>${escapeHtml(m.label ?? m.id)}</option>`,
+        )
+        .join("");
+    }
   }
 
   // v0.6 멀티 LLM — AI 프로바이더 섹션 채우기 (저장된 값 우선)
@@ -2581,7 +2596,20 @@ async function saveVault() {
 async function saveModel() {
   const val = document.getElementById("settings-model")?.value;
   if (!val) return;
-  await window.spiralSettings.updateModel(val);
+  const llmProv = _settingsCache?.llmProvider ?? "anthropic";
+  if (llmProv !== "anthropic") {
+    // v0.6 멀티 LLM — 모델만 변경: llmModel로 저장(키는 빈값=유지, 재시작 불필요).
+    // 모델은 요청마다 전달되므로(state.selectedModel) 다음 세션부터 바로 적용됨.
+    await window.spiralSettings.updateLlm({
+      provider: llmProv,
+      baseUrl: _settingsCache?.llmBaseUrl ?? "",
+      apiKey: "",
+      model: val,
+      relaunch: false,
+    });
+  } else {
+    await window.spiralSettings.updateModel(val);
+  }
   _settingsCache = await window.spiralSettings.get();
   state.selectedModel = val;
   localStorage.removeItem("spiral-buddy:model");
@@ -2598,6 +2626,7 @@ function llmEls() {
     baseUrl: document.getElementById("settings-llm-baseurl"),
     key: document.getElementById("settings-llm-key"),
     model: document.getElementById("settings-llm-model"),
+    modelList: document.getElementById("settings-llm-model-list"),
     hint: document.getElementById("settings-llm-hint"),
     baseUrlRow: document.getElementById("settings-llm-baseurl-row"),
     keyRow: document.getElementById("settings-llm-key-row"),
@@ -2635,6 +2664,12 @@ function applyLlmPreset(id, { fillDefaults = false } = {}) {
     if (fillDefaults) {
       el.baseUrl.value = preset.baseUrl ?? "";
       el.model.value = preset.exampleModel ?? "";
+    }
+    // 프로바이더별 대표 모델 목록 → 자동완성 제안 (직접 입력도 가능)
+    if (el.modelList) {
+      el.modelList.innerHTML = (preset.models ?? [])
+        .map((m) => `<option value="${escapeAttr(m)}"></option>`)
+        .join("");
     }
     // Base URL은 프리셋 고정값을 보여주되, 커스텀에서만 직접 편집
     el.baseUrl.readOnly = !isCustom;
