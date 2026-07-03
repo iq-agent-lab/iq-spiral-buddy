@@ -117,8 +117,9 @@ function displayWorkspaceName(nameOrPath) {
 // 옛 스키마 (single):
 //   { anthropicApiKey, vaultPath, roadmapRoot, ... }  → workspaces[0]으로 자동 마이그레이션.
 
-// 추천 디폴트 모델 — Sonnet 4.6 (빠르고 충분히 똑똑함, 비용 효율적)
-const DEFAULT_MODEL = "claude-sonnet-4-6";
+// 추천 디폴트 모델 — Sonnet 5 (2026-07 현행 세대, 빠르고 매우 똑똑함, 비용 효율적)
+// (ensureSonnetDefault는 1회성 baseline이라 기존 사용자의 저장 선택은 건드리지 않음)
+const DEFAULT_MODEL = "claude-sonnet-5";
 
 /**
  * v0.5.28 일회성 마이그레이션: 옛 install에서 Opus가 디폴트로 박혀있던 경우 Sonnet 4.6으로.
