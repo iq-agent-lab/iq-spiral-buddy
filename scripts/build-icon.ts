@@ -1,6 +1,6 @@
 // 앱 아이콘 생성기:
 //   1. 여백이 있는 archimedean spiral 좌표 계산
-//   2. SVG 문자열 생성 (deep navy + electric blue — Spiral Buddy Blue 정체성)
+//   2. SVG 문자열 생성 (paper + solid cobalt — Spiral Buddy Blue 정체성)
 //   3. 1024 PNG 출력 — @resvg/resvg-js가 있으면 사용
 //
 // 출력: electron/build/icon.svg, electron/build/icon.png
@@ -38,69 +38,20 @@ function svg(): string {
   const d = spiralPath();
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${SIZE} ${SIZE}" width="${SIZE}" height="${SIZE}">
-  <!-- Spiral Buddy Blue icon: deep navy + electric blue + ice 나선형 -->
-  <defs>
-    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#1c2e54"/>
-      <stop offset="45%" stop-color="#2e6bf0"/>
-      <stop offset="100%" stop-color="#0a1426"/>
-    </linearGradient>
-    <radialGradient id="glow" cx="58%" cy="62%" r="62%">
-      <stop offset="0%"  stop-color="#a8d2ff" stop-opacity="0.40"/>
-      <stop offset="38%" stop-color="#5cb8ff" stop-opacity="0.20"/>
-      <stop offset="72%" stop-color="#2563eb" stop-opacity="0.05"/>
-      <stop offset="100%" stop-color="#2563eb" stop-opacity="0"/>
-    </radialGradient>
-    <radialGradient id="coolGlow" cx="32%" cy="24%" r="62%">
-      <stop offset="0%" stop-color="#bfe0ff" stop-opacity="0.1"/>
-      <stop offset="58%" stop-color="#bfe0ff" stop-opacity="0.025"/>
-      <stop offset="100%" stop-color="#bfe0ff" stop-opacity="0"/>
-    </radialGradient>
-    <linearGradient id="rim" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%"  stop-color="#ffffff" stop-opacity="0.24"/>
-      <stop offset="40%" stop-color="#ffffff" stop-opacity="0"/>
-    </linearGradient>
-    <linearGradient id="spiralStroke" x1="18%" y1="4%" x2="83%" y2="96%">
-      <stop offset="0%"   stop-color="#8ec8ff"/>
-      <stop offset="42%"  stop-color="#ffffff"/>
-      <stop offset="72%"  stop-color="#dcecff"/>
-      <stop offset="100%" stop-color="#6fb2ff"/>
-    </linearGradient>
-    <filter id="spiralGlow" x="-20%" y="-20%" width="140%" height="140%">
-      <feGaussianBlur in="SourceGraphic" stdDeviation="7" result="blur"/>
-      <feMerge>
-        <feMergeNode in="blur"/>
-        <feMergeNode in="SourceGraphic"/>
-      </feMerge>
-    </filter>
-  </defs>
-
-  <!-- macOS squircle 근사 (rounded square) -->
-  <rect x="0" y="0" width="${SIZE}" height="${SIZE}" rx="220" ry="220" fill="url(#bg)"/>
-  <!-- 옵시디언 보석 림 라이트 -->
-  <rect x="0" y="0" width="${SIZE}" height="${SIZE}" rx="220" ry="220" fill="url(#rim)"/>
-  <!-- soft brand glow -->
-  <circle cx="${CENTER + 38}" cy="${CENTER + 72}" r="460" fill="url(#glow)"/>
-  <circle cx="${CENTER - 118}" cy="${CENTER - 138}" r="340" fill="url(#coolGlow)"/>
-  <path d="M 228 258 C 336 136 537 92 699 162 C 814 211 879 312 894 430"
-        stroke="#ffffff"
-        stroke-width="18"
-        stroke-linecap="round"
-        fill="none"
-        opacity="0.12"/>
+  <!-- Spiral Buddy Blue: a single cobalt field and a white learning path. -->
+  <rect x="0" y="0" width="${SIZE}" height="${SIZE}" rx="220" ry="220" fill="#1d5bd8"/>
+  <rect x="18" y="18" width="${SIZE - 36}" height="${SIZE - 36}" rx="204" ry="204"
+        fill="none" stroke="#ffffff" stroke-width="6" opacity="0.16"/>
 
   <!-- open spiral (archimedean, ${TURNS}턴) -->
   <path d="${d}"
-        stroke="url(#spiralStroke)"
+        stroke="#ffffff"
         stroke-width="58"
         stroke-linecap="round"
         stroke-linejoin="round"
-        fill="none"
-        filter="url(#spiralGlow)"/>
+        fill="none"/>
 
-  <!-- calm center -->
-  <circle cx="${CENTER}" cy="${CENTER}" r="18" fill="#ffffff" opacity="0.9"/>
-  <circle cx="${CENTER}" cy="${CENTER}" r="38" fill="none" stroke="#ffffff" stroke-width="3" opacity="0.2"/>
+  <circle cx="${CENTER}" cy="${CENTER}" r="18" fill="#ffffff"/>
 </svg>
 `;
 }

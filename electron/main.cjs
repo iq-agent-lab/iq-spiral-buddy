@@ -505,8 +505,8 @@ function createSetupWindow() {
   setupWindow = new BrowserWindow({
     width: 600,
     height: 640,
-    title: "Spiral Buddy — 초기 설정",
-    backgroundColor: "#090c12",
+    title: "Spiral Buddy Blue — 초기 설정",
+    backgroundColor: "#f5f7fb",
     icon: path.join(__dirname, "build", "icon.png"),
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
@@ -531,8 +531,8 @@ async function createMainWindow() {
     height: 900,
     minWidth: 800,
     minHeight: 600,
-    title: "Spiral Buddy",
-    backgroundColor: "#090c12",
+    title: "Spiral Buddy Blue",
+    backgroundColor: "#f5f7fb",
     icon: path.join(__dirname, "build", "icon.png"),
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
@@ -560,7 +560,7 @@ async function createMainWindow() {
       title: "Spiral Buddy",
       message: "진행 중인 학습 세션이 있습니다.",
       detail:
-        '닫으면 지금까지의 대화가 사라집니다.\n저장하려면 메인 창의 "End & Save"를 먼저 누르세요.',
+        '닫으면 지금까지의 대화가 사라집니다.\n저장하려면 메인 창의 "기록 저장"을 먼저 누르세요.',
     });
     if (choice === 1) {
       // preventDefault → beforeunload의 preventDefault를 무시하고 unload 진행
