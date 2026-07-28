@@ -8,4 +8,6 @@ dist/
 .idea/
 coverage/
 .cache/
+.pnpm-store/
+release/
 pnpm-workspace.yaml

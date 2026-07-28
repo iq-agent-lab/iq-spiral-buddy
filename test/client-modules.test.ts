@@ -7,6 +7,9 @@ import {
   cssEscape,
   truncate,
   _relTime,
+  FetchTimeoutError,
+  HttpResponseError,
+  fetchJson,
 } from "../client/util.js";
 
 import {
@@ -184,6 +187,79 @@ describe("util._relTime (bucket boundaries)", () => {
 
   test("days bucket → N일 전", () => {
     assert.equal(_relTime(Date.now() - 10 * DAY), "10일 전");
+  });
+});
+
+describe("util.fetchJson", () => {
+  test("returns parsed JSON for an ok response", async () => {
+    const data = await fetchJson("/ok", {
+      fetchImpl: async () =>
+        new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+    });
+    assert.deepEqual(data, { ok: true });
+  });
+
+  test("rejects non-2xx responses with status metadata", async () => {
+    await assert.rejects(
+      () =>
+        fetchJson("/bad", {
+          fetchImpl: async () => new Response("no", { status: 503 }),
+        }),
+      (error: unknown) =>
+        error instanceof HttpResponseError && error.status === 503,
+    );
+  });
+
+  test("times out a request that never settles", async () => {
+    await assert.rejects(
+      () =>
+        fetchJson("/slow", {
+          timeoutMs: 20,
+          fetchImpl: (_url: string, opts: RequestInit) =>
+            new Promise((_resolve, reject) => {
+              opts.signal?.addEventListener(
+                "abort",
+                () => reject(new DOMException("aborted", "AbortError")),
+                { once: true },
+              );
+            }),
+        }),
+      (error: unknown) =>
+        error instanceof FetchTimeoutError && error.timeoutMs === 20,
+    );
+  });
+
+  test("retries a transient GET failure once", async () => {
+    let calls = 0;
+    const data = await fetchJson("/retry", {
+      retries: 1,
+      retryDelayMs: 0,
+      fetchImpl: async () => {
+        calls += 1;
+        if (calls === 1) throw new TypeError("network");
+        return new Response(JSON.stringify({ calls }), { status: 200 });
+      },
+    });
+    assert.deepEqual(data, { calls: 2 });
+    assert.equal(calls, 2);
+  });
+
+  test("does not retry a non-idempotent request", async () => {
+    let calls = 0;
+    await assert.rejects(() =>
+      fetchJson("/post", {
+        method: "POST",
+        retries: 3,
+        fetchImpl: async () => {
+          calls += 1;
+          throw new TypeError("network");
+        },
+      }),
+    );
+    assert.equal(calls, 1);
   });
 });
 

@@ -3,6 +3,7 @@ import path from "node:path";
 import { glob } from "glob";
 import matter from "gray-matter";
 import { createTtlCache } from "./ttl-cache.js";
+import { mapWithConcurrency } from "./async-utils.js";
 
 export interface SpiralNote {
   filePath: string;
@@ -29,12 +30,15 @@ export interface SpiralNote {
 // env로 주입 가능: 기본 "spiral-buddy", 다른 방은 "spiral-buddy-<id>" 등.
 const SPIRAL_DIR = process.env.SPIRAL_VAULT_SUBDIR?.trim() || "spiral-buddy";
 const TRASH_DIR = ".trash";
+const NOTE_READ_CONCURRENCY = 16;
 
 // v0.5.76 — 매 API 요청(/roadmaps, /chapters, /activity, /history, /search)
 // 마다 vault 전체를 glob+read하던 비용 제거. 노트 변경은 이 프로세스가
 // 직접 수행(writeNewNote/moveNotesToTrash/restoreFromTrash)하므로 그때
 // invalidate. 외부에서 vault를 고치는 경우는 30초 TTL이 안전망.
-const notesCache = createTtlCache<SpiralNote[]>(30_000);
+const notesCache = createTtlCache<SpiralNote[]>(30_000, {
+  loadTimeoutMs: 60_000,
+});
 
 export function invalidateNotesCache(): void {
   notesCache.invalidate();
@@ -66,12 +70,12 @@ async function listSpiralNotesUncached(
     nodir: true,
   });
 
-  const notes: SpiralNote[] = [];
-  for (const rel of files) {
-    const abs = path.join(spiralRoot, rel);
-    const note = await readNote(abs, rel);
-    if (note) notes.push(note);
-  }
+  const loaded = await mapWithConcurrency(
+    files,
+    NOTE_READ_CONCURRENCY,
+    (rel) => readNote(path.join(spiralRoot, rel), rel),
+  );
+  const notes = loaded.filter((note): note is SpiralNote => note !== null);
   // date desc, 동일 날짜는 relativePath로 안정 정렬(결정성).
   notes.sort(
     (a, b) =>

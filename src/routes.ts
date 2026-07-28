@@ -380,7 +380,12 @@ function registerCoreRoutes(app: Hono, config: Config) {
   // ─────────────────────────────────────────────────────
 
   app.get("/roadmaps", async (c) => {
-    const roadmaps = await getInstalledRoadmaps(config);
+    // 대규모 iCloud 로드맵 탐색과 vault frontmatter 탐색은 서로 독립이다.
+    // 직렬 대기하지 않고 동시에 시작해 cold-start 시간을 둘의 합이 아닌 최댓값으로.
+    const [roadmaps, notes] = await Promise.all([
+      getInstalledRoadmaps(config),
+      config.vaultPath ? listSpiralNotes(config.vaultPath) : Promise.resolve([]),
+    ]);
     if (roadmaps.length === 0 && !config.curatedOrg && !config.roadmapRoot) {
       return c.json(
         {
@@ -390,8 +395,6 @@ function registerCoreRoutes(app: Hono, config: Config) {
         400,
       );
     }
-    const notes = config.vaultPath ? await listSpiralNotes(config.vaultPath) : [];
-
     const enriched = await Promise.all(
       roadmaps.map((r) => enrichRoadmap(r, notes, config)),
     );
@@ -409,13 +412,18 @@ function registerChapterRoutes(app: Hono, config: Config, client: ClaudeClient) 
 
   app.get("/chapters", async (c) => {
     const roadmapId = c.req.query("roadmap_id") ?? null;
+    const notesPromise = config.vaultPath
+      ? listSpiralNotes(config.vaultPath)
+      : Promise.resolve([]);
     const roadmap = await resolveRoadmap(config,roadmapId);
     if (!roadmap) {
       return c.json({ error: "Roadmap not found" }, 404);
     }
 
-    const chapters = await loadRoadmapChapters(roadmap);
-    const notes = config.vaultPath ? await listSpiralNotes(config.vaultPath) : [];
+    const [chapters, notes] = await Promise.all([
+      loadRoadmapChapters(roadmap),
+      notesPromise,
+    ]);
 
     // v0.5.70 — 챕터별 AI 카드 캐시 여부를 미리 확인.
     // 사이드바에서 💡 버튼 외관(채워짐 vs 비어있음)을 결정.

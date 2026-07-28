@@ -1,7 +1,15 @@
 // iq-spiral-buddy client — vanilla ES module
 // 로드맵 상태 관리 + 마크다운 렌더링 + 스트리밍
 
-import { escapeHtml, escapeAttr, cssEscape, truncate, _relTime } from "./util.js";
+import {
+  escapeHtml,
+  escapeAttr,
+  cssEscape,
+  truncate,
+  _relTime,
+  fetchJson,
+  FetchTimeoutError,
+} from "./util.js";
 import {
   STREAM_INACTIVITY_MS,
   createStreamHandle,
@@ -18,8 +26,6 @@ import {
   groupIconHtml,
   DEPTH_ICONS,
   CONTEXT_ICON_SVG,
-  THUMBS_UP_SVG,
-  THUMBS_DOWN_SVG,
 } from "./icons.js";
 import { LLM_PRESETS } from "./llm-presets.js";
 
@@ -72,7 +78,7 @@ const state = {
 const LS_KEY = "spiral-buddy:lastRoadmapId";
 
 // 아이콘 데이터/헬퍼(svgIcon, categoryIconHtml, repoIconHtml, groupIconHtml,
-// DEPTH_ICONS, CONTEXT_ICON_SVG, THUMBS_*)는 ./icons.js 로 분리됨.
+// DEPTH_ICONS, CONTEXT_ICON_SVG)는 ./icons.js 로 분리됨.
 
 function displayWorkspaceName(workspace) {
   const rawName = String(workspace?.name ?? "");
@@ -182,7 +188,10 @@ function cacheEls() {
 // ──────────────────────────────────────────────────────────
 
 // v0.5.35 — 테마 (다크/라이트) 적용
-const THEME_KEY = "spiral-buddy:theme";
+// v0.6.5 — Blue의 기본 작업 환경을 어두운 모드로 전환.
+// 키를 v2로 분리해 v0.6.4에서 자동 저장된 light 값이 새 기본값을 가로막지 않게 한다.
+// 사용자가 v0.6.5에서 다시 선택한 값은 이후 그대로 유지된다.
+const THEME_KEY = "spiral-buddy:theme:v2";
 
 function applyTheme(theme) {
   const t = theme === "dark" ? "dark" : "light";
@@ -198,9 +207,9 @@ function applyTheme(theme) {
 
 function getStoredTheme() {
   try {
-    return localStorage.getItem(THEME_KEY) || "light";
+    return localStorage.getItem(THEME_KEY) || "dark";
   } catch {
-    return "light";
+    return "dark";
   }
 }
 
@@ -635,17 +644,116 @@ function wireBeforeUnload() {
   });
 }
 
+let _initialLoadEpoch = 0;
+let _initialLoadController = null;
+let _roadmapLoadEpoch = 0;
+let _roadmapLoadController = null;
+
+function isAbortedRequest(error, signal) {
+  return Boolean(signal?.aborted || error?.name === "AbortError");
+}
+
+function readableLoadError(error) {
+  if (error instanceof FetchTimeoutError) {
+    return "응답이 늦어 연결을 멈췄어요";
+  }
+  return error?.message ? String(error.message) : "알 수 없는 오류";
+}
+
+function renderLoadFailure(container, message, retry, { listItem = false } = {}) {
+  if (!container) return;
+  const wrapper = document.createElement(listItem ? "li" : "div");
+  wrapper.className = "load-error";
+  const text = document.createElement("span");
+  text.textContent = message;
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "load-retry";
+  button.textContent = "다시 시도";
+  button.addEventListener("click", retry);
+  wrapper.append(text, button);
+  container.replaceChildren(wrapper);
+}
+
+function renderInitialLoadFailure(error) {
+  const reason = readableLoadError(error);
+  const retry = () => loadInitial();
+  const currentName = els.roadmapCurrent?.querySelector(".roadmap-name");
+  if (currentName) currentName.textContent = "로드맵을 불러오지 못했어요";
+  renderLoadFailure(
+    els.chapterList,
+    `학습 순서를 불러오지 못했어요 · ${reason}`,
+    retry,
+    { listItem: true },
+  );
+  renderLoadFailure(
+    els.historyList,
+    `지난 기록을 불러오지 못했어요 · ${reason}`,
+    retry,
+    { listItem: true },
+  );
+  renderLoadFailure(
+    els.suggestion,
+    "연결을 확인한 뒤 다시 시도해 주세요",
+    retry,
+  );
+  setStatus(`처음 화면을 불러오지 못했어요: ${reason}`, "error");
+}
+
 async function loadInitial() {
+  _initialLoadController?.abort();
+  const controller = new AbortController();
+  _initialLoadController = controller;
+  const epoch = ++_initialLoadEpoch;
+  const isCurrent = () =>
+    epoch === _initialLoadEpoch && !controller.signal.aborted;
+
+  const currentName = els.roadmapCurrent?.querySelector(".roadmap-name");
+  if (currentName) currentName.textContent = "불러오는 중…";
+  els.chapterList.innerHTML = `<li class="loading">불러오는 중…</li>`;
+  els.historyList.innerHTML = `<li class="loading">불러오는 중…</li>`;
+  els.suggestion.classList.remove("hidden");
+  els.suggestion.innerHTML = `<div class="loading">다음 나선을 찾는 중…</div>`;
+
   try {
-    const [config, roadmaps, modelsData] = await Promise.all([
-      fetch("/api/config").then((r) => r.json()),
-      fetch("/api/roadmaps")
-        .then((r) => r.json())
-        .catch(() => []),
-      fetch("/api/models").then((r) => r.json()).catch(() => null),
+    // 세 요청은 동시에 시작하되, 작고 빠른 설정/모델 응답을 먼저 반영한다.
+    // 로드맵의 대규모 파일 탐색이 늦어도 설정 UI까지 함께 멈추지 않는다.
+    const configPromise = fetchJson("/api/config", {
+      signal: controller.signal,
+      timeoutMs: 8_000,
+      retries: 1,
+    });
+    const modelsPromise = fetchJson("/api/models", {
+      signal: controller.signal,
+      timeoutMs: 8_000,
+      retries: 1,
+    }).catch((error) => {
+      if (isAbortedRequest(error, controller.signal)) throw error;
+      return null;
+    });
+    // config가 먼저 실패해 함수가 빠져나가더라도 roadmaps rejection이
+    // unhandled로 남지 않게 결과 객체로 정규화한다.
+    const roadmapsPromise = fetchJson("/api/roadmaps", {
+      signal: controller.signal,
+      timeoutMs: 35_000,
+      retries: 1,
+    }).then(
+      (value) => ({ ok: true, value }),
+      (error) => ({ ok: false, error }),
+    );
+
+    const [config, modelsData] = await Promise.all([
+      configPromise,
+      modelsPromise,
     ]);
+    if (!isCurrent()) return;
     state.config = config;
     state.curatedOrg = config?.curatedOrg ?? null;
+
+    const roadmapsResult = await roadmapsPromise;
+    if (!roadmapsResult.ok) throw roadmapsResult.error;
+    const roadmaps = roadmapsResult.value;
+    if (!isCurrent()) return;
     state.roadmaps = Array.isArray(roadmaps) ? roadmaps : [];
 
     // 모델 목록 + 선택 상태
@@ -683,6 +791,7 @@ async function loadInitial() {
     renderRoadmapSelector();
     if (state.activeRoadmapId) {
       await loadRoadmapData();
+      if (!isCurrent()) return;
       scrollToRecentChapter();
     } else {
       // 설치된 로드맵 없으면 placeholder + curated 가능 목록 자동 로드
@@ -693,7 +802,15 @@ async function loadInitial() {
       await loadCuratedAvailable();
     }
   } catch (err) {
-    setStatus(`처음 화면을 불러오지 못했어요: ${err.message}`, "error");
+    if (isAbortedRequest(err, controller.signal)) return;
+    if (isCurrent()) {
+      renderInitialLoadFailure(err);
+      controller.abort();
+    }
+  } finally {
+    if (_initialLoadController === controller) {
+      _initialLoadController = null;
+    }
   }
 }
 
@@ -703,12 +820,7 @@ async function loadCuratedAvailable(force = false) {
     const url = force
       ? "/api/curated/available?refresh=1"
       : "/api/curated/available";
-    const res = await fetch(url);
-    if (!res.ok) {
-      const errBody = await res.json().catch(() => ({}));
-      throw new Error(errBody.error ?? `HTTP ${res.status}`);
-    }
-    const data = await res.json();
+    const data = await fetchJson(url, { timeoutMs: 20_000, retries: 1 });
     state.curatedAvailable = data.repos ?? [];
     state.curatedGroups = data.groups ?? [];
     renderRoadmapSelector();
@@ -722,7 +834,16 @@ async function loadCuratedAvailable(force = false) {
 /** 현재 active 로드맵의 챕터/노트/추천을 모두 로드 */
 async function loadRoadmapData() {
   if (!state.activeRoadmapId) return;
-  const q = `?roadmap_id=${encodeURIComponent(state.activeRoadmapId)}`;
+  _roadmapLoadController?.abort();
+  const controller = new AbortController();
+  _roadmapLoadController = controller;
+  const epoch = ++_roadmapLoadEpoch;
+  const roadmapId = state.activeRoadmapId;
+  const q = `?roadmap_id=${encodeURIComponent(roadmapId)}`;
+  const isCurrent = () =>
+    epoch === _roadmapLoadEpoch &&
+    roadmapId === state.activeRoadmapId &&
+    !controller.signal.aborted;
 
   els.chapterList.innerHTML = `<li class="loading">불러오는 중…</li>`;
   els.historyList.innerHTML = `<li class="loading">불러오는 중…</li>`;
@@ -730,41 +851,83 @@ async function loadRoadmapData() {
   els.suggestion.classList.remove("hidden");
   els.suggestion.innerHTML = `<div class="loading">다음 나선을 찾는 중…</div>`;
 
-  try {
-    const [chaptersRes, historyRes] = await Promise.all([
-      fetch(`/api/chapters${q}`).then((r) => r.json()),
-      fetch(`/api/history${q}`).then((r) => r.json()),
-    ]);
+  const chaptersTask = (async () => {
+    try {
+      const chaptersRes = await fetchJson(`/api/chapters${q}`, {
+        signal: controller.signal,
+        timeoutMs: 25_000,
+        retries: 1,
+      });
+      if (!isCurrent()) return;
+      state.chapters = chaptersRes.chapters ?? [];
+      renderChapters();
 
-    state.chapters = chaptersRes.chapters ?? [];
-    state.history = Array.isArray(historyRes) ? historyRes : [];
-
-    renderChapters();
-    renderHistory();
-
-    // 다음 챕터 카드(suggestion)는 첫 진행 시에만 띄움.
-    // 이미 visited 챕터가 있으면(= 한 번이라도 학습 진행) 노이즈가 되므로 영역 자체 숨김.
-    // 사용자는 그 후엔 사이드바 챕터 리스트에서 직접 선택.
-    const visitedCount = state.chapters.filter(
-      (c) => (c.maxDepth ?? 0) > 0,
-    ).length;
-    if (visitedCount > 0) {
-      els.suggestion.classList.add("hidden");
-      state.suggestion = null;
-    } else {
-      // suggestion은 비동기로
-      fetch(`/api/suggest${q}`)
-        .then((r) => r.json())
-        .then((suggestion) => {
-          state.suggestion = suggestion;
-          renderSuggestion();
-        })
-        .catch(() => {
-          els.suggestion.innerHTML = `<div class="empty">다음 학습을 불러오지 못했어요</div>`;
-        });
+      // 첫 진입 추천은 이미 받은 챕터 데이터만으로 결정할 수 있다.
+      // 별도 /suggest 요청(상황에 따라 LLM 호출)이 사이드바를 붙잡지 않게 한다.
+      const visitedCount = state.chapters.filter(
+        (chapter) => (chapter.maxDepth ?? 0) > 0,
+      ).length;
+      if (visitedCount > 0 || state.chapters.length === 0) {
+        els.suggestion.replaceChildren();
+        els.suggestion.classList.add("hidden");
+        state.suggestion = null;
+      } else {
+        const firstChapter =
+          state.chapters.find((chapter) => (chapter.maxDepth ?? 0) === 0) ??
+          state.chapters[0];
+        state.suggestion = {
+          recommendedChapterId: firstChapter.id,
+          rationale: "첫 챕터부터 학습 흐름을 열어보세요.",
+          mode: "first-time",
+        };
+        renderSuggestion();
+      }
+    } catch (error) {
+      if (isAbortedRequest(error, controller.signal) || !isCurrent()) return;
+      const reason = readableLoadError(error);
+      state.chapters = [];
+      renderLoadFailure(
+        els.chapterList,
+        `학습 순서를 불러오지 못했어요 · ${reason}`,
+        () => loadRoadmapData(),
+        { listItem: true },
+      );
+      renderLoadFailure(
+        els.suggestion,
+        "다음 학습을 정하지 못했어요",
+        () => loadRoadmapData(),
+      );
+      setStatus(`학습 순서 로드 실패: ${reason}`, "error");
     }
-  } catch (err) {
-    setStatus(`로드맵 데이터 로드 실패: ${err.message}`, "error");
+  })();
+
+  const historyTask = (async () => {
+    try {
+      const historyRes = await fetchJson(`/api/history${q}`, {
+        signal: controller.signal,
+        timeoutMs: 25_000,
+        retries: 1,
+      });
+      if (!isCurrent()) return;
+      state.history = Array.isArray(historyRes) ? historyRes : [];
+      renderHistory();
+    } catch (error) {
+      if (isAbortedRequest(error, controller.signal) || !isCurrent()) return;
+      const reason = readableLoadError(error);
+      state.history = [];
+      renderLoadFailure(
+        els.historyList,
+        `지난 기록을 불러오지 못했어요 · ${reason}`,
+        () => loadRoadmapData(),
+        { listItem: true },
+      );
+      setStatus(`지난 기록 로드 실패: ${reason}`, "error");
+    }
+  })();
+
+  await Promise.allSettled([chaptersTask, historyTask]);
+  if (_roadmapLoadController === controller) {
+    _roadmapLoadController = null;
   }
 }
 
@@ -2303,8 +2466,18 @@ function _renderChapterAiCardBody(pop, chapter, card) {
 let _settingsCache = null;
 
 async function initSettings() {
-  _settingsCache = await window.spiralSettings.get();
-  renderWorkspaceSelector();
+  try {
+    _settingsCache = await window.spiralSettings.get();
+    renderWorkspaceSelector();
+  } catch (error) {
+    // IPC 초기화 실패가 정적 "불러오는 중…" 문구와 unhandled rejection으로
+    // 남지 않게 한다. 나머지 설정 버튼 wiring은 그대로 살려 재진입 가능하게 한다.
+    if (els.workspaceName) els.workspaceName.textContent = "학습 공간";
+    setStatus(
+      `워크스페이스 정보를 불러오지 못했어요: ${readableLoadError(error)}`,
+      "error",
+    );
+  }
 
   // topbar 설정 버튼
   els.settingsBtn?.addEventListener("click", openSettingsModal);
@@ -3667,7 +3840,7 @@ function initLookup() {
     if (lookupNow > 0 && chatW < CHAT_MIN_CAP - 2) {
       closeLookupPanel();
       setStatus(
-        "창이 좁아져 곁노트를 닫았어요 — 창을 넓히면 다시 열 수 있어요",
+        "창이 좁아져 보조 패널을 닫았어요 — 창을 넓히면 다시 열 수 있어요",
         "info",
       );
       setTimeout(() => {
@@ -3791,7 +3964,7 @@ function openLookupPanel() {
   els.lookupResizer?.classList.remove("hidden");
   els.lookupPanel?.setAttribute("aria-hidden", "false");
   document.getElementById("lookup-toggle")?.setAttribute("aria-expanded", "true");
-  document.getElementById("lookup-toggle")?.setAttribute("aria-label", "곁노트 닫기");
+  document.getElementById("lookup-toggle")?.setAttribute("aria-label", "보조 패널 닫기");
   _lookupState.open = true;
 }
 
@@ -3804,7 +3977,7 @@ function closeLookupPanel() {
   els.lookupResizer?.classList.add("hidden");
   els.lookupPanel?.setAttribute("aria-hidden", "true");
   document.getElementById("lookup-toggle")?.setAttribute("aria-expanded", "false");
-  document.getElementById("lookup-toggle")?.setAttribute("aria-label", "곁노트 열기");
+  document.getElementById("lookup-toggle")?.setAttribute("aria-label", "보조 패널 열기");
   _lookupState.open = false;
   // v0.5.50 — inline --lookup-w를 제거해야 grid track이 0으로 돌아감.
   // 안 지우면 panel은 hidden인데 grid column은 400px(또는 saved)로 남아
@@ -4029,8 +4202,8 @@ function flashLookupCard(existing) {
   setTimeout(() => existing.classList.remove("lookup-card-flash"), 1500);
 }
 
-// 카드 생성: 기존 카드 접기 + article + head fold-toggle + copy/close 액션 +
-// feedback bar wiring. {card, bodyEl} 반환.
+// 카드 생성: 기존 카드 접기 + article + head fold-toggle + copy/close 액션.
+// {card, bodyEl} 반환.
 function createLookupCard({ cardClass, fingerprintAttr, fingerprint, innerHtml }) {
   els.lookupPanelBody.querySelectorAll(".lookup-card").forEach((c) => {
     c.classList.add("collapsed");
@@ -4075,7 +4248,6 @@ function createLookupCard({ cardClass, fingerprintAttr, fingerprint, innerHtml }
       }
     });
   });
-  wireFeedbackBar(card.querySelector(".feedback-bar"));
   return { card, bodyEl };
 }
 
@@ -4156,7 +4328,6 @@ async function runLookup(query, depth, opts = {}) {
     </div>
     ${questionLine}
     <div class="lookup-card-body"><span style="opacity:0.6">…</span></div>
-    ${renderFeedbackBar("lookup")}
   `,
   });
 
@@ -4229,7 +4400,6 @@ async function runChapterContext({ targetMessageText, selectionText } = {}) {
       </div>
     </div>
     <div class="lookup-card-body"><span style="opacity:0.6">맥락 찾는 중…</span></div>
-    ${renderFeedbackBar("lookup")}
   `,
   });
 
@@ -4254,39 +4424,6 @@ function _chapterContextFingerprint(targetMessageText, selectionText) {
       .replace(/\s+/g, " ")
       .slice(0, 400);
   return `ctx::${norm(targetMessageText)}::${norm(selectionText)}`;
-}
-
-// ──────────────────────────────────────────────────────────
-// 따봉 (👍/👎) — v0.5.31
-// ──────────────────────────────────────────────────────────
-
-function renderFeedbackBar(kind /* "msg" | "lookup" */) {
-  return `<div class="feedback-bar" data-kind="${escapeAttr(kind)}" role="group" aria-label="응답 만족도">
-    <button class="feedback-btn" data-vote="up" type="button" title="도움됐어요" aria-label="좋아요">${THUMBS_UP_SVG}</button>
-    <button class="feedback-btn" data-vote="down" type="button" title="아쉬워요" aria-label="아쉬워요">${THUMBS_DOWN_SVG}</button>
-  </div>`;
-}
-
-function wireFeedbackBar(bar) {
-  if (!bar) return;
-  bar.querySelectorAll(".feedback-btn").forEach((btn) => {
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      const vote = btn.dataset.vote;
-      // 이미 같은 vote 선택돼 있으면 취소 (toggle)
-      if (btn.classList.contains("active")) {
-        btn.classList.remove("active");
-        return;
-      }
-      bar.querySelectorAll(".feedback-btn").forEach((b) =>
-        b.classList.remove("active"),
-      );
-      btn.classList.add("active");
-      // 짧은 시각 피드백 — 살짝 스케일
-      btn.classList.add("just-clicked");
-      setTimeout(() => btn.classList.remove("just-clicked"), 320);
-    });
-  });
 }
 
 // ──────────────────────────────────────────────────────────
@@ -4397,7 +4534,10 @@ function renderTrashList(entries) {
 async function refreshActivityBadge() {
   if (!els.activityStreak) return;
   try {
-    const data = await fetch("/api/activity?days=90").then((r) => r.json());
+    const data = await fetchJson("/api/activity?days=90", {
+      timeoutMs: 8_000,
+      retries: 1,
+    });
     const byDate = data.byDate ?? {};
     const total = data.total ?? 0;
     // 오늘부터 거꾸로 연속 일수
@@ -4471,23 +4611,59 @@ function hideActivityTooltip() {
   _activityTooltip?.classList.remove("visible");
 }
 
+let _activityRequestController = null;
+let _activityRequestEpoch = 0;
+
 async function openActivityModal() {
   if (!els.activityModal) return;
+  _activityRequestController?.abort();
+  const controller = new AbortController();
+  _activityRequestController = controller;
+  const epoch = ++_activityRequestEpoch;
+  const isCurrent = () =>
+    epoch === _activityRequestEpoch &&
+    _activityRequestController === controller &&
+    !controller.signal.aborted &&
+    !els.activityModal.classList.contains("hidden");
+
   els.activityModal.classList.remove("hidden");
   els.activityModal.setAttribute("aria-hidden", "false");
-  els.activitySummary.innerHTML = "불러오는 중…";
+  els.activitySummary.className = "activity-summary is-loading";
+  els.activitySummary.innerHTML = `<span class="activity-loading"><span class="inline-spinner" aria-hidden="true"></span>학습 기록을 불러오는 중…</span>`;
   els.activityGrid.innerHTML = "";
   els.activityMonthLabels.innerHTML = "";
   try {
-    const data = await fetch("/api/activity?days=365").then((r) => r.json());
+    const data = await fetchJson("/api/activity?days=365", {
+      signal: controller.signal,
+      timeoutMs: 15_000,
+      retries: 1,
+    });
+    if (!isCurrent()) return;
+    els.activitySummary.className = "activity-summary";
     renderActivity(data);
   } catch (err) {
-    els.activitySummary.innerHTML = `로드 실패: ${escapeHtml(err.message)}`;
+    if (isAbortedRequest(err, controller.signal) || !isCurrent()) return;
+    const reason = readableLoadError(err);
+    els.activitySummary.className = "activity-summary is-error";
+    els.activitySummary.innerHTML = `
+      <span class="activity-error">학습 기록을 불러오지 못했어요 · ${escapeHtml(reason)}</span>
+      <button class="activity-retry" type="button">다시 시도</button>
+    `;
+    els.activitySummary
+      .querySelector(".activity-retry")
+      ?.addEventListener("click", openActivityModal);
+  } finally {
+    if (_activityRequestController === controller) {
+      _activityRequestController = null;
+    }
   }
 }
 
 function closeActivityModal() {
   if (!els.activityModal) return;
+  _activityRequestEpoch++;
+  _activityRequestController?.abort();
+  _activityRequestController = null;
   els.activityModal.classList.add("hidden");
   els.activityModal.setAttribute("aria-hidden", "true");
   hideActivityTooltip();
@@ -5026,7 +5202,7 @@ function showPastConversationModal(note, data) {
   const bubbles = msgs.length
     ? msgs
         .map((m) => {
-          const who = m.role === "user" ? "내 기록" : "Spiral";
+          const who = m.role === "user" ? "YOU" : "BUDDY";
           const cls = m.role === "user" ? "user" : "assistant";
           const content =
             m.role === "assistant"
@@ -5076,16 +5252,9 @@ function renderSuggestion() {
     els.suggestion.innerHTML = `<div class="empty">이어갈 학습이 아직 없어요</div>`;
     return;
   }
-  const modeLabel =
-    {
-      "first-time": "첫 시작",
-      "deeper-layer": "한 겹 더 깊게",
-      "next-chapter": "다음 챕터",
-      "cross-link": "이어 보기",
-    }[s.mode] ?? "학습 이어가기";
   const chapter = state.chapters.find((c) => c.id === s.recommendedChapterId);
   els.suggestion.innerHTML = `
-    <div class="suggestion-mode"><span>다음 나선</span><small>${modeLabel}</small></div>
+    <div class="suggestion-mode"><span>다음 나선</span></div>
     ${
       chapter
         ? `<div class="suggestion-title">${escapeHtml(chapter.title)}</div>`
@@ -5234,28 +5403,28 @@ const QUIZ_LEVELS = [
   {
     level: 1,
     label: "개념 확인",
-    color: "violet",
+    tone: "recall",
     prompt:
       "지금까지 다룬 내용에서 핵심 개념을 짚는 짧은 질문 2개를 내줘. 답은 알려주지 말고, 내가 먼저 말해보게 해줘.",
   },
   {
     level: 2,
     label: "적용",
-    color: "cyan",
+    tone: "apply",
     prompt:
       "오늘 배운 개념을 살짝 다른 시나리오에 적용해야 답할 수 있는 질문 2개를 내줘. 답은 알려주지 마.",
   },
   {
     level: 3,
     label: "함정·엣지케이스",
-    color: "orange",
+    tone: "challenge",
     prompt:
       "오늘 다룬 개념의 흔한 오해, 함정, 또는 엣지 케이스를 찌르는 날카로운 질문 2개를 내줘. 답은 알려주지 마.",
   },
   {
     level: 4,
     label: "종합 시나리오",
-    color: "gold",
+    tone: "synthesis",
     prompt:
       "오늘 다룬 개념 + 관련된 사전 지식까지 엮어서 답해야 하는, 실무에서 마주칠 만한 종합 시나리오 1개를 내줘. 답을 풀어주지 말고 내가 생각해보게 해줘.",
   },
@@ -5286,6 +5455,7 @@ function updateQuizButton() {
   }
   // data-level로 색 변화
   els.quizBtn.dataset.quizLevel = String(next.level);
+  els.quizBtn.dataset.quizTone = next.tone;
   els.quizBtn.title = `퀴즈 ${next.level}/${QUIZ_LEVELS.length} — ${next.label}`;
 }
 
@@ -5988,7 +6158,7 @@ function appendUserMessage(text, opts = {}) {
   const div = document.createElement("div");
   div.className = "message user";
   div.innerHTML = `
-    <div class="role">내 기록</div>
+    <div class="role">YOU</div>
     <div class="content"></div>
   `;
   // textContent로 입력 — 줄바꿈은 CSS white-space: pre-wrap이 유지함
@@ -6006,16 +6176,14 @@ function appendAssistantMessage(initialMarkdown) {
   const div = document.createElement("div");
   div.className = "message assistant";
   div.innerHTML = `
-    <div class="role">Spiral</div>
+    <div class="role">BUDDY</div>
     <div class="content"></div>
-    ${renderFeedbackBar("msg")}
     ${_renderChapterContextBtn()}
   `;
   if (initialMarkdown) {
     div.querySelector(".content").innerHTML = renderMarkdown(initialMarkdown);
   }
   els.messages.appendChild(div);
-  wireFeedbackBar(div.querySelector(".feedback-bar"));
   _wireChapterContextBtn(div);
   scrollToBottom();
   return div;

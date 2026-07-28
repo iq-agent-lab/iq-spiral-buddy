@@ -13,11 +13,11 @@
     <link rel="stylesheet" href="/styles.css" />
     <link
       rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/highlight.js@11.10.0/styles/github.min.css"
+      href="/vendor/highlight-github.css"
     />
     <link rel="stylesheet" href="/blue-brand.css" />
   </head>
-  <body class="light-mode">
+  <body class="dark-mode">
     <aside id="sidebar">
       <header class="brand">
         <div class="brand-row">
@@ -36,12 +36,10 @@
             </svg>
           </div>
           <div class="brand-text">
-            <div class="brand-kicker">SPIRAL STUDY SYSTEM</div>
             <h1 class="brand-title">
               <span>Spiral Buddy</span>
               <span class="brand-edition">Blue</span>
             </h1>
-            <p class="brand-tagline">한 번 더 돌아, 더 깊게</p>
           </div>
         </div>
       </header>
@@ -173,7 +171,7 @@
             </svg>
             <span>잠시 멈춤</span>
           </button>
-          <button id="quiz-btn" class="action-btn quiz" disabled title="짧은 자가확인 질문 받기">
+          <button id="quiz-btn" class="action-btn quiz" data-quiz-tone="recall" disabled title="짧은 자가확인 질문 받기">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
               <line x1="12" y1="17" x2="12.01" y2="17"/>
@@ -195,7 +193,7 @@
               <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
             </svg>
           </button>
-          <button id="lookup-toggle" class="action-btn icon-action-btn lookup-toggle-btn" title="곁노트 — 잠깐 더 알아보기 (⌘L)" aria-label="곁노트 열기" aria-controls="lookup-panel" aria-expanded="false">
+          <button id="lookup-toggle" class="action-btn icon-action-btn lookup-toggle-btn" title="보조 패널 — 잠깐 더 알아보기 (⌘L)" aria-label="보조 패널 열기" aria-controls="lookup-panel" aria-expanded="false">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
               <line x1="15" y1="3" x2="15" y2="21"/>
@@ -290,16 +288,10 @@
       <div id="status-bar" class="status-bar" role="status" aria-live="polite"></div>
     </main>
 
-    <div id="lookup-resizer" class="lookup-resizer hidden" role="separator" aria-orientation="vertical" aria-label="곁노트 패널 너비 조절"></div>
+    <div id="lookup-resizer" class="lookup-resizer hidden" role="separator" aria-orientation="vertical" aria-label="보조 패널 너비 조절"></div>
 
-    <aside id="lookup-panel" class="lookup-panel hidden" aria-hidden="true">
+    <aside id="lookup-panel" class="lookup-panel hidden" aria-hidden="true" aria-label="보조 패널">
       <header class="lookup-panel-header">
-        <span class="lookup-panel-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 12 m0 0 a1 1 0 0 1 2 0 a2 2 0 0 1 -4 0 a3 3 0 0 1 6 0 a4 4 0 0 1 -8 0 a5 5 0 0 1 10 0"/>
-          </svg>
-        </span>
-        <h3>곁노트</h3>
         <button id="lookup-expand" class="lookup-panel-mini icon-btn" type="button" title="전체화면 토글" aria-label="전체화면 토글">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <polyline points="15 3 21 3 21 9"/>
@@ -319,7 +311,7 @@
           </svg>
         </button>
       </div>
-      <div id="lookup-direct-resizer" class="lookup-direct-resizer" role="separator" aria-orientation="horizontal" aria-label="곁노트 입력 높이 조절" title="드래그하여 입력창 높이 조절 (더블클릭=리셋)"></div>
+      <div id="lookup-direct-resizer" class="lookup-direct-resizer" role="separator" aria-orientation="horizontal" aria-label="보조 패널 입력 높이 조절" title="드래그하여 입력창 높이 조절 (더블클릭=리셋)"></div>
       <form id="lookup-direct-form" class="lookup-direct-form">
         <textarea id="lookup-direct-context" class="lookup-direct-context hidden" placeholder="이 키워드를 어떤 맥락에서 알고 싶은지 (선택)..." rows="2"></textarea>
         <div class="lookup-direct-row">
@@ -342,7 +334,7 @@
       </form>
     </aside>
 
-    <div id="lookup-toolbar" class="lookup-toolbar hidden" role="toolbar" aria-label="선택 텍스트 곁노트">
+    <div id="lookup-toolbar" class="lookup-toolbar hidden" role="toolbar" aria-label="선택 텍스트 보조 패널">
       <button class="lookup-tool-btn" data-depth="concise" type="button" title="1-2문장 핵심만 (빠르게)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <line x1="4" y1="12" x2="14" y2="12"/>
@@ -460,7 +452,7 @@
           <div class="settings-field theme-field">
             <label>테마</label>
             <div class="theme-toggle" role="radiogroup" aria-label="테마 선택">
-              <button type="button" class="theme-opt active" data-theme="light" role="radio" aria-checked="true" tabindex="0">
+              <button type="button" class="theme-opt" data-theme="light" role="radio" aria-checked="false" tabindex="-1">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <circle cx="12" cy="12" r="4.5"/>
                   <line x1="12" y1="2" x2="12" y2="4"/>
@@ -474,7 +466,7 @@
                 </svg>
                 <span>화이트</span>
               </button>
-              <button type="button" class="theme-opt" data-theme="dark" role="radio" aria-checked="false" tabindex="-1">
+              <button type="button" class="theme-opt active" data-theme="dark" role="radio" aria-checked="true" tabindex="0">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
                 </svg>
@@ -492,7 +484,7 @@
                 <span>켜기</span>
               </button>
             </div>
-            <div class="settings-hint">로고·뱃지 등의 상시 애니메이션. 끄면 GPU 사용·발열·배터리 소모가 줄어듭니다. (기본: 끄기)</div>
+            <div class="settings-hint">뱃지 등의 추가 장식 애니메이션. 끄면 GPU 사용·발열·배터리 소모가 줄어듭니다. (기본: 끄기)</div>
           </div>
           <div id="update-banner" class="update-banner hidden" role="status">
             <span class="update-banner-icon" aria-hidden="true">

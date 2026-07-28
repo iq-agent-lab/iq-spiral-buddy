@@ -3020,3 +3020,761 @@ body.motion-on .action-btn.quiz {
     transition-duration: 0.001ms !important;
   }
 }
+
+/* -------------------------------------------------------------------------- */
+/* v0.6.5 — semantic actions, dark fallback and quieter loading states         */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * The document fallback is intentionally ink-dark. The explicit body theme
+ * classes still win because their custom properties live on the body itself:
+ * light-mode stays white, dark-mode keeps the tuned ink palette.
+ */
+
+:root {
+  color-scheme: dark;
+  --blue-canvas: #0d1623;
+  --blue-paper: #14202e;
+  --blue-surface: #182536;
+  --blue-paper-muted: #1e2d40;
+  --blue-paper-pressed: #26384f;
+  --blue-line: #2e4056;
+  --blue-line-strong: #455b76;
+  --blue-ink: #edf4fc;
+  --blue-ink-soft: #b8c6d8;
+  --blue-ink-faint: #8899af;
+  --blue-cobalt: #82a9ff;
+  --blue-cobalt-strong: #adc5ff;
+  --blue-cobalt-soft: #1c345f;
+  --blue-cobalt-soft-strong: #254477;
+  --blue-sky: #6b9fe9;
+  --blue-sky-soft: #172c4d;
+  --blue-action: #315fbd;
+  --blue-action-hover: #3d70d8;
+  --blue-success: #73b997;
+  --blue-success-soft: #19382d;
+  --blue-warning: #e0b166;
+  --blue-warning-soft: #382e20;
+  --blue-danger: #e88d94;
+  --blue-danger-soft: #40262c;
+  --blue-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.18);
+  --blue-shadow-md: 0 12px 30px rgba(0, 0, 0, 0.24);
+  --blue-focus: 0 0 0 3px rgba(130, 169, 255, 0.24);
+  --border-soft: #233144;
+
+  /* Semantic, non-primary actions */
+  --blue-pause-tone: #efb85f;
+  --blue-quiz-recall: #aeb5ff;
+  --blue-quiz-apply: #65d3e5;
+  --blue-quiz-challenge: #ffac70;
+  --blue-quiz-synthesis: #e5c46d;
+  --blue-lookup-question: #8dccff;
+  --blue-lookup-context: #70d4c7;
+  --blue-depth-concise: #c5ceda;
+  --blue-depth-medium: #86baf3;
+  --blue-depth-deep: #97aaff;
+}
+
+body.light-mode {
+  --blue-pause-tone: #a8630b;
+  --blue-quiz-recall: #5b63c7;
+  --blue-quiz-apply: #087f99;
+  --blue-quiz-challenge: #c45d1a;
+  --blue-quiz-synthesis: #95701a;
+  --blue-lookup-question: #2779b9;
+  --blue-lookup-context: #0b7f76;
+  --blue-depth-concise: #64748b;
+  --blue-depth-medium: #2f70b7;
+  --blue-depth-deep: #465db2;
+}
+
+body.dark-mode {
+  --blue-pause-tone: #efb85f;
+  --blue-quiz-recall: #aeb5ff;
+  --blue-quiz-apply: #65d3e5;
+  --blue-quiz-challenge: #ffac70;
+  --blue-quiz-synthesis: #e5c46d;
+  --blue-lookup-question: #8dccff;
+  --blue-lookup-context: #70d4c7;
+  --blue-depth-concise: #c5ceda;
+  --blue-depth-medium: #86baf3;
+  --blue-depth-deep: #97aaff;
+}
+
+html,
+body:not(.light-mode):not(.dark-mode) {
+  background: var(--blue-canvas) !important;
+  color: var(--blue-ink) !important;
+}
+
+/* User notes hug their content and align to the reading column's right edge. */
+
+body:is(.light-mode, .dark-mode) .messages .message.user {
+  width: fit-content !important;
+  min-width: 0;
+  max-width: min(72%, 44rem) !important;
+  margin-right: clamp(4px, 2vw, 24px);
+  margin-left: auto;
+}
+
+body:is(.light-mode, .dark-mode) .message.user .content {
+  width: fit-content;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+/* One compact spinner can be reused inside buttons, status rows and cards. */
+
+.inline-spinner {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 0.92em;
+  height: 0.92em;
+  box-sizing: border-box;
+  border: 1.5px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  color: inherit;
+  vertical-align: -0.1em;
+  opacity: 0.72;
+  animation: blue-inline-spin 780ms linear infinite;
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.loading::before {
+  content: "";
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 0.92em;
+  height: 0.92em;
+  box-sizing: border-box;
+  border: 1.5px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  opacity: 0.72;
+  animation: blue-inline-spin 780ms linear infinite;
+}
+
+.load-error {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--blue-danger);
+  font-size: 12px;
+  line-height: 1.45;
+  list-style: none;
+}
+
+.load-error > span {
+  min-width: 0;
+}
+
+body:is(.light-mode, .dark-mode) .load-retry {
+  flex: 0 0 auto;
+  min-height: 30px;
+  padding: 5px 10px;
+  border: 1px solid
+    color-mix(in srgb, var(--blue-danger) 38%, var(--blue-line)) !important;
+  border-radius: 7px;
+  background: var(--blue-paper) !important;
+  color: var(--blue-danger) !important;
+  font: inherit;
+  font-weight: 700;
+}
+
+body:is(.light-mode, .dark-mode) .load-retry:hover {
+  background: var(--blue-danger-soft) !important;
+  border-color: var(--blue-danger) !important;
+}
+
+.inline-spinner[data-size="sm"],
+button .inline-spinner {
+  width: 0.82em;
+  height: 0.82em;
+}
+
+@keyframes blue-inline-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/*
+ * The logo's path is a brand behavior rather than a user preference toggle.
+ * Its 24-second turn is deliberately calm but visible; OS reduced-motion stops it.
+ */
+
+@keyframes blue-brand-idle-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+body #sidebar .logo-spiral .spiral-rotate,
+body.motion-on #sidebar .logo-spiral .spiral-rotate {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: blue-brand-idle-turn 24s linear infinite !important;
+}
+
+/* Pause is cautionary; save/send and the active learning path stay cobalt. */
+
+body:is(.light-mode, .dark-mode) .action-btn.pause {
+  background: color-mix(
+    in srgb,
+    var(--blue-pause-tone) 10%,
+    var(--blue-paper)
+  ) !important;
+  border-color: color-mix(
+    in srgb,
+    var(--blue-pause-tone) 42%,
+    var(--blue-line)
+  ) !important;
+  color: var(--blue-pause-tone) !important;
+}
+
+body:is(.light-mode, .dark-mode) .action-btn.pause:hover:not(:disabled) {
+  background: color-mix(
+    in srgb,
+    var(--blue-pause-tone) 17%,
+    var(--blue-paper)
+  ) !important;
+  border-color: color-mix(
+    in srgb,
+    var(--blue-pause-tone) 70%,
+    var(--blue-line)
+  ) !important;
+  color: var(--blue-pause-tone) !important;
+}
+
+/*
+ * Quiz semantics are supplied by app.js through data-quiz-tone. A missing
+ * attribute gracefully falls back to recall/periwinkle.
+ */
+
+body:is(.light-mode, .dark-mode) .action-btn.quiz {
+  --quiz-tone: var(--blue-quiz-recall);
+}
+
+body:is(.light-mode, .dark-mode)
+  .action-btn.quiz[data-quiz-tone="recall"] {
+  --quiz-tone: var(--blue-quiz-recall);
+}
+
+body:is(.light-mode, .dark-mode)
+  .action-btn.quiz[data-quiz-tone="apply"] {
+  --quiz-tone: var(--blue-quiz-apply);
+}
+
+body:is(.light-mode, .dark-mode)
+  .action-btn.quiz[data-quiz-tone="challenge"] {
+  --quiz-tone: var(--blue-quiz-challenge);
+}
+
+body:is(.light-mode, .dark-mode)
+  .action-btn.quiz[data-quiz-tone="synthesis"] {
+  --quiz-tone: var(--blue-quiz-synthesis);
+}
+
+body:is(.light-mode, .dark-mode) .action-btn.quiz {
+  background: color-mix(
+    in srgb,
+    var(--quiz-tone) 10%,
+    var(--blue-paper)
+  ) !important;
+  border-color: color-mix(
+    in srgb,
+    var(--quiz-tone) 40%,
+    var(--blue-line)
+  ) !important;
+  color: var(--quiz-tone) !important;
+}
+
+body:is(.light-mode, .dark-mode) .action-btn.quiz:hover:not(:disabled) {
+  background: color-mix(
+    in srgb,
+    var(--quiz-tone) 17%,
+    var(--blue-paper)
+  ) !important;
+  border-color: color-mix(
+    in srgb,
+    var(--quiz-tone) 70%,
+    var(--blue-line)
+  ) !important;
+  color: var(--quiz-tone) !important;
+}
+
+/* Lookup intent: sky asks, teal reconnects context, depth has its own scale. */
+
+body:is(.light-mode, .dark-mode)
+  :is(
+    .lookup-tool-question,
+    .lookup-question-keyword,
+    .lookup-card-userq
+  ) {
+  color: var(--blue-lookup-question) !important;
+}
+
+body:is(.light-mode, .dark-mode) .lookup-tool-question svg {
+  color: var(--blue-lookup-question) !important;
+}
+
+body:is(.light-mode, .dark-mode) .lookup-tool-question:hover {
+  background: color-mix(
+    in srgb,
+    var(--blue-lookup-question) 13%,
+    var(--blue-paper)
+  ) !important;
+  color: var(--blue-lookup-question) !important;
+}
+
+body:is(.light-mode, .dark-mode) .lookup-question-keyword {
+  background: color-mix(
+    in srgb,
+    var(--blue-lookup-question) 9%,
+    var(--blue-paper)
+  ) !important;
+  border-color: color-mix(
+    in srgb,
+    var(--blue-lookup-question) 30%,
+    var(--blue-line)
+  ) !important;
+}
+
+body:is(.light-mode, .dark-mode) .lookup-card-userq {
+  border-top-color: color-mix(
+    in srgb,
+    var(--blue-lookup-question) 28%,
+    var(--blue-line)
+  ) !important;
+  font-style: normal;
+}
+
+body:is(.light-mode, .dark-mode) .lookup-question-submit {
+  background: var(--blue-lookup-question) !important;
+  border: 1px solid var(--blue-lookup-question) !important;
+  color: #ffffff !important;
+  box-shadow: none !important;
+}
+
+body.dark-mode .lookup-question-submit {
+  color: #0d2132 !important;
+}
+
+body:is(.light-mode, .dark-mode) .lookup-question-submit:hover:not(:disabled) {
+  background: color-mix(
+    in srgb,
+    var(--blue-lookup-question) 86%,
+    var(--blue-ink)
+  ) !important;
+  border-color: color-mix(
+    in srgb,
+    var(--blue-lookup-question) 86%,
+    var(--blue-ink)
+  ) !important;
+  box-shadow: var(--blue-shadow-sm) !important;
+  filter: none !important;
+}
+
+body:is(.light-mode, .dark-mode) .lookup-question-text:focus {
+  border-color: var(--blue-lookup-question) !important;
+  box-shadow: 0 0 0 3px
+    color-mix(in srgb, var(--blue-lookup-question) 18%, transparent) !important;
+}
+
+body:is(.light-mode, .dark-mode) .lookup-question-popover:focus-within {
+  border-color: color-mix(
+    in srgb,
+    var(--blue-lookup-question) 52%,
+    var(--blue-line)
+  ) !important;
+}
+
+body:is(.light-mode, .dark-mode)
+  :is(
+    .lookup-tool-context,
+    .chapter-context-btn,
+    #lookup-direct-ctx-toggle
+  ) {
+  color: var(--blue-lookup-context) !important;
+}
+
+body:is(.light-mode, .dark-mode)
+  :is(.lookup-tool-context, .chapter-context-btn)
+  svg {
+  color: var(--blue-lookup-context) !important;
+}
+
+body:is(.light-mode, .dark-mode)
+  :is(
+    .lookup-tool-context,
+    .chapter-context-btn,
+    #lookup-direct-ctx-toggle
+  ):hover:not(:disabled),
+body:is(.light-mode, .dark-mode) #lookup-direct-ctx-toggle.active {
+  background: color-mix(
+    in srgb,
+    var(--blue-lookup-context) 12%,
+    var(--blue-paper)
+  ) !important;
+  border-color: color-mix(
+    in srgb,
+    var(--blue-lookup-context) 48%,
+    var(--blue-line)
+  ) !important;
+  color: var(--blue-lookup-context) !important;
+}
+
+body:is(.light-mode, .dark-mode) .chapter-context-btn {
+  background: color-mix(
+    in srgb,
+    var(--blue-lookup-context) 8%,
+    var(--blue-paper)
+  ) !important;
+  border-color: color-mix(
+    in srgb,
+    var(--blue-lookup-context) 34%,
+    var(--blue-line)
+  ) !important;
+}
+
+body:is(.light-mode, .dark-mode) .lookup-card.lookup-card-ctx {
+  border-left-color: var(--blue-lookup-context) !important;
+}
+
+body:is(.light-mode, .dark-mode) .lookup-card-kind-ctx {
+  background: color-mix(
+    in srgb,
+    var(--blue-lookup-context) 11%,
+    var(--blue-paper)
+  ) !important;
+  border-color: color-mix(
+    in srgb,
+    var(--blue-lookup-context) 30%,
+    var(--blue-line)
+  ) !important;
+  color: var(--blue-lookup-context) !important;
+}
+
+body:is(.light-mode, .dark-mode)
+  .lookup-card-kind-ctx
+  .lookup-card-depth-icon,
+body:is(.light-mode, .dark-mode)
+  .lookup-card-kind-ctx
+  .lookup-card-depth-icon
+  svg {
+  color: var(--blue-lookup-context) !important;
+}
+
+body:is(.light-mode, .dark-mode) .lookup-direct-context:focus {
+  border-color: var(--blue-lookup-context) !important;
+  box-shadow: 0 0 0 3px
+    color-mix(in srgb, var(--blue-lookup-context) 17%, transparent) !important;
+}
+
+body:is(.light-mode, .dark-mode)
+  :is(
+    .lookup-tool-btn[data-depth="concise"],
+    .lookup-card-depth[data-depth="concise"],
+    .lookup-direct-depth[data-depth="concise"]
+  ) {
+  --lookup-depth-tone: var(--blue-depth-concise);
+}
+
+body:is(.light-mode, .dark-mode)
+  :is(
+    .lookup-tool-btn[data-depth="medium"],
+    .lookup-card-depth[data-depth="medium"],
+    .lookup-direct-depth[data-depth="medium"]
+  ) {
+  --lookup-depth-tone: var(--blue-depth-medium);
+}
+
+body:is(.light-mode, .dark-mode)
+  :is(
+    .lookup-tool-btn[data-depth="deep"],
+    .lookup-card-depth[data-depth="deep"],
+    .lookup-direct-depth[data-depth="deep"]
+  ) {
+  --lookup-depth-tone: var(--blue-depth-deep);
+}
+
+body:is(.light-mode, .dark-mode)
+  :is(
+    .lookup-tool-btn[data-depth],
+    .lookup-direct-depth[data-depth]
+  ) {
+  color: var(--lookup-depth-tone) !important;
+}
+
+body:is(.light-mode, .dark-mode)
+  .lookup-tool-btn[data-depth]
+  :is(svg, span) {
+  color: inherit !important;
+}
+
+body:is(.light-mode, .dark-mode) .lookup-tool-btn[data-depth]:hover {
+  background: color-mix(
+    in srgb,
+    var(--lookup-depth-tone) 11%,
+    var(--blue-paper)
+  ) !important;
+  color: var(--lookup-depth-tone) !important;
+}
+
+body:is(.light-mode, .dark-mode) .lookup-card-depth[data-depth] {
+  background: color-mix(
+    in srgb,
+    var(--lookup-depth-tone) 9%,
+    var(--blue-paper)
+  ) !important;
+  border-color: color-mix(
+    in srgb,
+    var(--lookup-depth-tone) 28%,
+    var(--blue-line)
+  ) !important;
+  color: var(--lookup-depth-tone) !important;
+}
+
+body:is(.light-mode, .dark-mode)
+  .lookup-card-depth[data-depth]
+  .lookup-card-depth-icon,
+body:is(.light-mode, .dark-mode)
+  .lookup-card-depth[data-depth]
+  .lookup-card-depth-icon
+  svg {
+  color: inherit !important;
+}
+
+body:is(.light-mode, .dark-mode)
+  .lookup-question-depth:has(option[value="concise"]:checked) {
+  color: var(--blue-depth-concise) !important;
+}
+
+body:is(.light-mode, .dark-mode)
+  .lookup-question-depth:has(option[value="medium"]:checked) {
+  color: var(--blue-depth-medium) !important;
+}
+
+body:is(.light-mode, .dark-mode)
+  .lookup-question-depth:has(option[value="deep"]:checked) {
+  color: var(--blue-depth-deep) !important;
+}
+
+/* The header stays useful if its title is removed: controls remain right. */
+
+body:is(.light-mode, .dark-mode) .lookup-panel-header {
+  justify-content: flex-end;
+}
+
+.lookup-panel-header h3 {
+  margin-right: auto;
+}
+
+.lookup-panel-header > .lookup-panel-mini:first-of-type {
+  margin-left: auto;
+}
+
+/* Domain/category color is structural; labels stay neutral and readable. */
+
+body:is(.light-mode, .dark-mode) .domain-header {
+  border-left: 3px solid
+    color-mix(
+      in srgb,
+      var(--dom-color, var(--blue-cobalt)) 70%,
+      var(--blue-line)
+    ) !important;
+}
+
+body:is(.light-mode, .dark-mode) .category-header {
+  border-left: 3px solid
+    color-mix(
+      in srgb,
+      var(--cat-color, var(--blue-cobalt)) 66%,
+      var(--blue-line)
+    ) !important;
+}
+
+body:is(.light-mode, .dark-mode) .domain-header:hover {
+  border-left-color: var(--dom-color, var(--blue-cobalt)) !important;
+}
+
+body:is(.light-mode, .dark-mode) .category-header:hover {
+  border-left-color: var(--cat-color, var(--blue-cobalt)) !important;
+}
+
+body:is(.light-mode, .dark-mode) .domain-header .cat-icon {
+  color: color-mix(
+    in srgb,
+    var(--dom-color, var(--blue-cobalt)) 76%,
+    var(--blue-ink-soft)
+  ) !important;
+}
+
+body:is(.light-mode, .dark-mode) .domain-header .cat-icon::after {
+  background: var(--dom-color, var(--blue-cobalt)) !important;
+}
+
+body:is(.light-mode, .dark-mode) .category-header .cat-icon {
+  color: color-mix(
+    in srgb,
+    var(--cat-color, var(--blue-cobalt)) 76%,
+    var(--blue-ink-soft)
+  ) !important;
+}
+
+body:is(.light-mode, .dark-mode) .category-header .cat-icon::after {
+  background: var(--cat-color, var(--blue-cobalt)) !important;
+}
+
+body:is(.light-mode, .dark-mode)
+  :is(.domain-header .dom-name, .category-header .cat-name) {
+  color: var(--blue-ink) !important;
+  -webkit-text-fill-color: currentColor !important;
+}
+
+/* Activity modal async states share the inline spinner and semantic feedback. */
+
+.activity-state,
+.activity-loading,
+.activity-error {
+  min-height: 132px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 10px;
+  padding: 22px;
+  text-align: center;
+}
+
+.activity-loading {
+  color: var(--blue-ink-soft);
+}
+
+.activity-loading .inline-spinner {
+  width: 18px;
+  height: 18px;
+  color: var(--blue-cobalt);
+}
+
+.activity-loading-text,
+.activity-error-message {
+  max-width: 38ch;
+  color: var(--blue-ink-soft);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.activity-error {
+  color: var(--blue-danger);
+}
+
+.activity-error-title {
+  color: var(--blue-ink);
+  font-family: var(--blue-font-editorial);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.activity-error-icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid
+    color-mix(in srgb, var(--blue-danger) 35%, var(--blue-line));
+  border-radius: 50%;
+  background: var(--blue-danger-soft);
+  color: var(--blue-danger);
+}
+
+body:is(.light-mode, .dark-mode) .activity-retry {
+  min-height: 34px;
+  padding: 7px 13px;
+  background: var(--blue-paper) !important;
+  border: 1px solid
+    color-mix(in srgb, var(--blue-cobalt) 38%, var(--blue-line)) !important;
+  border-radius: 7px;
+  color: var(--blue-cobalt) !important;
+  box-shadow: var(--blue-shadow-xs) !important;
+}
+
+body:is(.light-mode, .dark-mode) .activity-retry:hover:not(:disabled) {
+  background: var(--blue-cobalt-soft) !important;
+  border-color: var(--blue-cobalt) !important;
+  color: var(--blue-cobalt-strong) !important;
+}
+
+.activity-summary.is-loading,
+.activity-summary.is-error {
+  min-height: 132px;
+  flex-flow: column nowrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 22px;
+  text-align: center;
+}
+
+.activity-summary.is-loading .activity-loading {
+  min-height: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+}
+
+.activity-summary.is-error .activity-error {
+  min-height: 0;
+  display: block;
+  padding: 0;
+}
+
+.activity-grid-wrap.is-loading .activity-grid,
+.activity-grid-wrap.is-error .activity-grid,
+.activity-grid-wrap.is-loading .activity-month-labels,
+.activity-grid-wrap.is-error .activity-month-labels {
+  visibility: hidden;
+}
+
+@media (max-width: 800px) {
+  body:is(.light-mode, .dark-mode) .messages .message.user {
+    max-width: 84% !important;
+    margin-right: 2px;
+  }
+}
+
+@media (max-width: 520px) {
+  body:is(.light-mode, .dark-mode) .messages .message.user {
+    max-width: 92% !important;
+    margin-right: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading::before,
+  .inline-spinner,
+  body #sidebar .logo-spiral .spiral-rotate,
+  body.motion-on #sidebar .logo-spiral .spiral-rotate {
+    animation: none !important;
+  }
+
+  .inline-spinner {
+    border-right-color: currentColor;
+    border-top-color: transparent;
+  }
+
+  .loading::before {
+    border-right-color: currentColor;
+    border-top-color: transparent;
+  }
+}
