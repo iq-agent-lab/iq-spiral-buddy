@@ -21,31 +21,33 @@
   <body class="dark-mode">
     <svg class="blue-symbol-library" width="0" height="0" aria-hidden="true" focusable="false">
       <defs>
+        <path
+          id="blue-organic-loop"
+          d="M 86 96 C 264 22 748 26 906 148 C 1015 232 990 515 840 626 C 660 758 286 700 116 574 C -8 481 -26 220 86 96 Z"
+        />
+        <g id="blue-vortex-stack">
+          <use href="#blue-organic-loop" opacity=".22" transform="translate(500 360) rotate(-14) scale(1) translate(-500 -360)" />
+          <use href="#blue-organic-loop" opacity=".28" transform="translate(506 356) rotate(-7) scale(.91 .89) translate(-500 -360)" />
+          <use href="#blue-organic-loop" opacity=".35" transform="translate(512 352) rotate(0) scale(.82 .79) translate(-500 -360)" />
+          <use href="#blue-organic-loop" opacity=".42" transform="translate(519 348) rotate(8) scale(.73 .69) translate(-500 -360)" />
+          <use href="#blue-organic-loop" opacity=".5" transform="translate(526 344) rotate(17) scale(.64 .6) translate(-500 -360)" />
+          <use href="#blue-organic-loop" opacity=".58" transform="translate(533 340) rotate(27) scale(.55 .51) translate(-500 -360)" />
+          <use href="#blue-organic-loop" opacity=".66" transform="translate(540 336) rotate(38) scale(.47 .43) translate(-500 -360)" />
+          <use href="#blue-organic-loop" opacity=".74" transform="translate(546 333) rotate(50) scale(.39 .35) translate(-500 -360)" />
+          <use href="#blue-organic-loop" opacity=".81" transform="translate(551 330) rotate(63) scale(.31 .28) translate(-500 -360)" />
+          <use href="#blue-organic-loop" opacity=".88" transform="translate(555 328) rotate(77) scale(.24 .21) translate(-500 -360)" />
+          <use href="#blue-organic-loop" opacity=".94" transform="translate(558 326) rotate(92) scale(.18 .15) translate(-500 -360)" />
+          <use href="#blue-organic-loop" opacity="1" transform="translate(560 324) rotate(108) scale(.12 .1) translate(-500 -360)" />
+        </g>
         <symbol id="blue-welcome-geometry" viewBox="0 0 1000 720">
           <g
             fill="none"
             stroke="currentColor"
-            stroke-width="2.2"
+            stroke-linecap="round"
             stroke-linejoin="round"
-            vector-effect="non-scaling-stroke"
           >
-            <rect x="50" y="65" width="900" height="590" rx="34" opacity=".16" transform="rotate(-18 500 360)" />
-            <rect x="87.5" y="90" width="825" height="540" rx="31" opacity=".2" transform="rotate(-10 500 360)" />
-            <rect x="125" y="115" width="750" height="490" rx="28" opacity=".24" transform="rotate(-2 500 360)" />
-            <rect x="160" y="139" width="680" height="442" rx="25" opacity=".29" transform="rotate(6 500 360)" />
-            <rect x="195" y="161" width="610" height="398" rx="23" opacity=".34" transform="rotate(14 500 360)" />
-            <rect x="228" y="183" width="544" height="354" rx="21" opacity=".4" transform="rotate(22 500 360)" />
-            <rect x="259" y="203" width="482" height="314" rx="19" opacity=".46" transform="rotate(30 500 360)" />
-            <rect x="288" y="222" width="424" height="276" rx="17" opacity=".52" transform="rotate(38 500 360)" />
-            <rect x="315" y="240" width="370" height="240" rx="15" opacity=".58" transform="rotate(46 500 360)" />
-            <rect x="340" y="256" width="320" height="208" rx="13" opacity=".64" transform="rotate(54 500 360)" />
-            <rect x="363" y="271" width="274" height="178" rx="12" opacity=".7" transform="rotate(62 500 360)" />
-            <rect x="385" y="285" width="230" height="150" rx="11" opacity=".76" transform="rotate(70 500 360)" />
-            <rect x="405" y="298" width="190" height="124" rx="10" opacity=".81" transform="rotate(78 500 360)" />
-            <rect x="424" y="310" width="152" height="100" rx="9" opacity=".86" transform="rotate(86 500 360)" />
-            <rect x="442" y="322" width="116" height="76" rx="8" opacity=".9" transform="rotate(94 500 360)" />
-            <rect x="458" y="332" width="84" height="56" rx="7" opacity=".94" transform="rotate(102 500 360)" />
-            <rect x="472" y="341" width="56" height="38" rx="6" opacity=".98" transform="rotate(110 500 360)" />
+            <use class="blue-vortex-band" href="#blue-vortex-stack" stroke-width="24" opacity=".11" />
+            <use class="blue-vortex-line" href="#blue-vortex-stack" stroke-width="4.2" opacity=".82" />
           </g>
         </symbol>
       </defs>

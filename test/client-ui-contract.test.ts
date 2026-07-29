@@ -61,6 +61,10 @@ describe("client UI contracts", () => {
     assert.doesNotMatch(app, /반복은 제자리가 아니라/);
     assert.doesNotMatch(learningHub, /반복은 제자리가 아니라/);
     assert.match(html, /id="blue-welcome-geometry"/);
+    assert.match(html, /id="blue-organic-loop"/);
+    assert.match(html, /id="blue-vortex-stack"/);
+    assert.match(html, /class="blue-vortex-band"/);
+    assert.match(html, /class="blue-vortex-line"/);
     assert.match(html, /<use href="#blue-welcome-geometry"><\/use>/);
     assert.match(app, /<use href="#blue-welcome-geometry"><\/use>/);
     assert.match(learningHub, /class="hub-focus"/);
