@@ -122,8 +122,8 @@ export function getLatestHistoryNote(history = []) {
   );
 }
 
-const SPIRAL_MARK = `
-  <div class="welcome-mark" aria-hidden="true">
+const SPIRAL_AMBIENT_MARK = `
+  <div class="hub-ambient-geometry" aria-hidden="true">
     <svg class="welcome-geometry" viewBox="0 0 1000 720" preserveAspectRatio="xMidYMid slice">
       <use href="#blue-welcome-geometry"></use>
     </svg>
@@ -136,6 +136,43 @@ function focusModeLabel(mode) {
   return "다시 연결하기";
 }
 
+function buildLearningHubLoadingMarkup() {
+  return `
+    <div class="placeholder spiral-welcome learning-hub is-loading" aria-label="학습 허브" aria-busy="true">
+      ${SPIRAL_AMBIENT_MARK}
+      <span class="visually-hidden">학습 정보를 불러오는 중입니다.</span>
+
+      <section class="hub-focus hub-loading-focus" aria-hidden="true">
+        <div class="hub-focus-heading">
+          <span class="hub-skeleton hub-skeleton-kicker"></span>
+          <span class="hub-skeleton hub-skeleton-badge"></span>
+        </div>
+        <div class="hub-focus-body">
+          <div class="hub-focus-copy">
+            <span class="hub-skeleton hub-skeleton-title"></span>
+            <span class="hub-skeleton hub-skeleton-copy"></span>
+            <span class="hub-skeleton hub-skeleton-meta"></span>
+          </div>
+          <div class="hub-focus-actions">
+            <span class="hub-skeleton hub-skeleton-button"></span>
+            <span class="hub-skeleton hub-skeleton-button is-secondary"></span>
+          </div>
+        </div>
+      </section>
+
+      <div class="hub-overview" aria-hidden="true">
+        <section class="hub-progress hub-loading-panel">
+          <span class="hub-skeleton hub-skeleton-section"></span>
+          <span class="hub-skeleton hub-skeleton-panel"></span>
+        </section>
+        <section class="hub-recent hub-loading-panel">
+          <span class="hub-skeleton hub-skeleton-section"></span>
+          <span class="hub-skeleton hub-skeleton-panel"></span>
+        </section>
+      </div>
+    </div>`;
+}
+
 export function buildLearningHubMarkup({
   roadmapName = "학습 경로",
   chapters = [],
@@ -143,7 +180,10 @@ export function buildLearningHubMarkup({
   recentChapterId = null,
   pausedSession = null,
   canOpenSettings = false,
+  loading = false,
 } = {}) {
+  if (loading) return buildLearningHubLoadingMarkup();
+
   const list = Array.isArray(chapters) ? chapters : [];
   const notes = Array.isArray(history) ? history : [];
   const metrics = getLearningMetrics(list, notes);
@@ -197,9 +237,7 @@ export function buildLearningHubMarkup({
 
   return `
     <div class="placeholder spiral-welcome learning-hub" aria-label="학습 허브">
-      <header class="hub-hero hub-hero--geometry">
-        ${SPIRAL_MARK}
-      </header>
+      ${SPIRAL_AMBIENT_MARK}
 
       <section class="hub-focus" aria-labelledby="hub-focus-title">
         <div class="hub-focus-heading">

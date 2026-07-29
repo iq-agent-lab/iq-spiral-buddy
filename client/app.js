@@ -33,7 +33,6 @@ import { LLM_PRESETS } from "./llm-presets.js";
 import {
   buildLearningHubMarkup,
   getLatestHistoryNote,
-  selectLearningFocus,
 } from "./learning-hub.js";
 
 // ──────────────────────────────────────────────────────────
@@ -66,7 +65,6 @@ const state = {
   activeRoadmapId: null,
   chapters: [],
   history: [],
-  suggestion: null,
   session: null,
   messages: [],
   pending: false,
@@ -86,17 +84,6 @@ const LS_KEY = "spiral-buddy:lastRoadmapId";
 
 // 아이콘 데이터/헬퍼(svgIcon, categoryIconHtml, repoIconHtml, groupIconHtml,
 // DEPTH_ICONS, CONTEXT_ICON_SVG)는 ./icons.js 로 분리됨.
-
-const WELCOME_EMPTY_HTML = `
-  <div class="placeholder spiral-welcome learning-hub">
-    <header class="hub-hero hub-hero--geometry">
-      <div class="welcome-mark" aria-hidden="true">
-        <svg class="welcome-geometry" viewBox="0 0 1000 720" preserveAspectRatio="xMidYMid slice">
-          <use href="#blue-welcome-geometry"></use>
-        </svg>
-      </div>
-    </header>
-  </div>`;
 
 function displayWorkspaceName(workspace) {
   const rawName = String(workspace?.name ?? "");
@@ -129,7 +116,6 @@ function cacheEls() {
   els.sidebarSearch = $("sidebar-search");
   els.sidebarSearchClear = $("sidebar-search-clear");
   els.sidebarSearchMeta = $("sidebar-search-meta");
-  els.suggestion = $("suggestion-box");
   els.chapterList = $("chapter-list");
   els.chapterProgressSummary = $("chapter-progress-summary");
   els.historyList = $("history-list");
@@ -163,6 +149,8 @@ function cacheEls() {
   els.searchModal = $("search-modal");
   els.searchInput = $("search-input");
   els.searchResults = $("search-results");
+  els.searchCloseBtn = $("search-close-btn");
+  els.searchStatus = $("search-status");
   els.activityOpenBtn = $("activity-open-btn");
   els.activityStreak = $("activity-streak");
   els.activityModal = $("activity-modal");
@@ -305,6 +293,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
   wireChoiceGroup(".theme-opt");
   wireChoiceGroup(".motion-opt");
+  // 데이터 요청 전에 실제 학습 홈 구조부터 열어, 별도의 welcome 페이지가
+  // 먼저 나타났다가 사라지는 전환을 만들지 않는다.
+  renderLearningHub({ loading: true });
   await loadInitial();
 });
 
@@ -421,7 +412,7 @@ function getLatestPausedSession() {
   )[0] ?? null;
 }
 
-function renderLearningHub() {
+function renderLearningHub({ loading = false } = {}) {
   if (state.session || !els.messages) return;
   updateTopbar();
   const activeRoadmap = state.roadmaps.find(
@@ -437,6 +428,7 @@ function renderLearningHub() {
     recentChapterId: getRecentChapterId(),
     pausedSession: getLatestPausedSession(),
     canOpenSettings: Boolean(window.spiralSettings),
+    loading,
   });
   _scrollState.messagesStick = true;
   els.messages.scrollTop = 0;
@@ -765,7 +757,18 @@ function wireSidePanels() {
       e.preventDefault();
       openSearchModal();
     }
-    if (e.key === "Escape" && els.activityModal && !els.activityModal.classList.contains("hidden")) {
+    if (
+      e.key === "Escape" &&
+      els.searchModal &&
+      !els.searchModal.classList.contains("hidden")
+    ) {
+      e.preventDefault();
+      closeSearchModal();
+    } else if (
+      e.key === "Escape" &&
+      els.activityModal &&
+      !els.activityModal.classList.contains("hidden")
+    ) {
       closeActivityModal();
     }
   });
@@ -773,19 +776,24 @@ function wireSidePanels() {
     els.searchModal.addEventListener("click", (e) => {
       if (e.target === els.searchModal) closeSearchModal();
     });
+    els.searchModal.addEventListener("keydown", trapSearchModalFocus);
   }
+  els.searchCloseBtn?.addEventListener("click", closeSearchModal);
   if (els.searchInput) {
-    let debounceTimer = null;
     els.searchInput.addEventListener("input", () => {
-      clearTimeout(debounceTimer);
+      clearTimeout(_searchState.debounceTimer);
       const q = els.searchInput.value;
-      debounceTimer = setTimeout(() => runSearch(q), 150);
+      _searchState.inflight = null;
+      _searchState.lastQuery = "";
+      clearSearchResults();
+      if (q.trim().length < 2) {
+        setSearchStatus(q.trim() ? "한 글자 더 입력하세요." : "");
+        return;
+      }
+      _searchState.debounceTimer = setTimeout(() => runSearch(q), 150);
     });
     els.searchInput.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        closeSearchModal();
-      } else if (e.key === "ArrowDown") {
+      if (e.key === "ArrowDown") {
         e.preventDefault();
         moveSearchSelection(1);
       } else if (e.key === "ArrowUp") {
@@ -958,13 +966,8 @@ function renderInitialLoadFailure(error) {
     retry,
     { listItem: true },
   );
-  renderLoadFailure(
-    els.suggestion,
-    "연결을 확인한 뒤 다시 시도해 주세요",
-    retry,
-  );
   if (!state.session && els.messages) {
-    els.messages.innerHTML = WELCOME_EMPTY_HTML;
+    renderLearningHub();
   }
   setStatus(`처음 화면을 불러오지 못했어요: ${reason}`, "error");
 }
@@ -977,13 +980,11 @@ async function loadInitial() {
   const isCurrent = () =>
     epoch === _initialLoadEpoch && !controller.signal.aborted;
 
+  if (!state.session) renderLearningHub({ loading: true });
   const currentName = els.roadmapCurrent?.querySelector(".roadmap-name");
   if (currentName) currentName.textContent = "불러오는 중…";
   els.chapterList.innerHTML = `<li class="loading">불러오는 중…</li>`;
   els.historyList.innerHTML = `<li class="loading">불러오는 중…</li>`;
-  els.suggestion.classList.remove("hidden");
-  els.suggestion.innerHTML = `<div class="loading">다음 나선을 찾는 중…</div>`;
-
   try {
     // 세 요청은 동시에 시작하되, 작고 빠른 설정/모델 응답을 먼저 반영한다.
     // 로드맵의 대규모 파일 탐색이 늦어도 설정 UI까지 함께 멈추지 않는다.
@@ -1067,7 +1068,6 @@ async function loadInitial() {
       // 설치된 로드맵 없으면 placeholder + curated 가능 목록 자동 로드
       els.chapterList.innerHTML = `<li class="empty">아직 학습 경로가 없어요. 현재 경로 메뉴나 설정에서 자료를 추가해 주세요.</li>`;
       els.historyList.innerHTML = `<li class="empty">—</li>`;
-      els.suggestion.innerHTML = `<div class="empty">학습 자료를 추가하면 다음 챕터를 추천해드려요.</div>`;
       // 원격 추천 목록은 느리거나 실패할 수 있으므로 홈 화면을 먼저 연다.
       renderLearningHub();
       // curated available 자동 fetch
@@ -1122,10 +1122,6 @@ async function loadRoadmapData() {
   state.history = [];
   els.chapterList.innerHTML = `<li class="loading">불러오는 중…</li>`;
   els.historyList.innerHTML = `<li class="loading">불러오는 중…</li>`;
-  // suggestion 영역은 일단 숨겨두고 chapters 확인 후 결정
-  els.suggestion.classList.remove("hidden");
-  els.suggestion.innerHTML = `<div class="loading">다음 나선을 찾는 중…</div>`;
-
   const chaptersTask = (async () => {
     try {
       const chaptersRes = await fetchJson(`/api/chapters${q}`, {
@@ -1136,7 +1132,6 @@ async function loadRoadmapData() {
       if (!isCurrent()) return;
       state.chapters = chaptersRes.chapters ?? [];
       renderChapters();
-      refreshLearningRecommendation();
       if (!state.session) renderLearningHub();
     } catch (error) {
       if (isAbortedRequest(error, controller.signal) || !isCurrent()) return;
@@ -1147,11 +1142,6 @@ async function loadRoadmapData() {
         `학습 순서를 불러오지 못했어요 · ${reason}`,
         () => loadRoadmapData(),
         { listItem: true },
-      );
-      renderLoadFailure(
-        els.suggestion,
-        "다음 학습을 정하지 못했어요",
-        () => loadRoadmapData(),
       );
       if (!state.session) renderLearningHub();
       setStatus(`학습 순서 로드 실패: ${reason}`, "error");
@@ -1171,7 +1161,6 @@ async function loadRoadmapData() {
       // chapters/history는 병렬 조회된다. history가 나중에 도착하면 실제 수정
       // 시각으로 계산한 "마지막" 표시를 다시 반영한다.
       if (state.chapters.length > 0) renderChapters();
-      refreshLearningRecommendation();
       if (!state.session) renderLearningHub();
     } catch (error) {
       if (isAbortedRequest(error, controller.signal) || !isCurrent()) return;
@@ -2036,7 +2025,7 @@ async function _handleSessionInterruptionBody() {
     state.messages = [];
     enableSessionUi(false);
     updateTopbar();
-    els.messages.innerHTML = WELCOME_EMPTY_HTML;
+    renderLearningHub();
     // v0.5.105 — "저장하고 이동" 후에도 사이드바 "마지막"/depth 배지를 즉시 갱신.
     // (endSession 경로는 loadRoadmapData로 갱신하지만 이 경로는 roadmaps만 갱신해
     //  방금 저장한 챕터가 재시작 전까지 stale로 남았음.) session=null 이후라 방금
@@ -4405,7 +4394,7 @@ function _lookupMaxForViewportShared() {
 }
 
 function openLookupPanel() {
-  // 넓은 화면에서는 학습 경로와 사이드 노트를 함께 유지한다.
+  // 넓은 화면에서는 학습 경로와 보조 노트를 함께 유지한다.
   // 두 패널을 유지하면 채팅 최소 폭이 깨지는 경우에만 사이드바를 임시로 접는다.
   _lookupState.sidebarAutoCollapsed = false;
   const hasOpenSidebar =
@@ -4435,7 +4424,7 @@ function openLookupPanel() {
   els.lookupResizer?.classList.remove("hidden");
   els.lookupPanel?.setAttribute("aria-hidden", "false");
   document.getElementById("lookup-toggle")?.setAttribute("aria-expanded", "true");
-  document.getElementById("lookup-toggle")?.setAttribute("aria-label", "사이드 노트 닫기");
+  document.getElementById("lookup-toggle")?.setAttribute("aria-label", "보조 노트 닫기");
   _lookupState.open = true;
 }
 
@@ -4448,7 +4437,7 @@ function closeLookupPanel() {
   els.lookupResizer?.classList.add("hidden");
   els.lookupPanel?.setAttribute("aria-hidden", "true");
   document.getElementById("lookup-toggle")?.setAttribute("aria-expanded", "false");
-  document.getElementById("lookup-toggle")?.setAttribute("aria-label", "사이드 노트 열기");
+  document.getElementById("lookup-toggle")?.setAttribute("aria-label", "보조 노트 열기");
   _lookupState.open = false;
   // v0.5.50 — inline --lookup-w를 제거해야 grid track이 0으로 돌아감.
   // 안 지우면 panel은 hidden인데 grid column은 400px(또는 saved)로 남아
@@ -5328,32 +5317,82 @@ const _searchState = {
   selectedIndex: 0,
   lastQuery: "",
   inflight: null,
+  debounceTimer: null,
+  returnFocus: null,
 };
+
+function setSearchStatus(message) {
+  if (els.searchStatus) els.searchStatus.textContent = message;
+}
+
+function setSearchExpanded(expanded) {
+  els.searchInput?.setAttribute("aria-expanded", String(expanded));
+  if (!expanded) els.searchInput?.removeAttribute("aria-activedescendant");
+}
+
+function clearSearchResults() {
+  els.searchResults?.replaceChildren();
+  _searchState.items = [];
+  _searchState.selectedIndex = 0;
+  setSearchExpanded(false);
+}
+
+function trapSearchModalFocus(e) {
+  if (e.key !== "Tab" || els.searchModal?.classList.contains("hidden")) return;
+  const focusable = [els.searchInput, els.searchCloseBtn].filter(
+    (node) => node && !node.disabled,
+  );
+  if (focusable.length < 2) return;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (e.shiftKey && document.activeElement === first) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && document.activeElement === last) {
+    e.preventDefault();
+    first.focus();
+  }
+}
 
 function openSearchModal() {
   if (!els.searchModal) return;
+  if (els.searchModal.classList.contains("hidden")) {
+    _searchState.returnFocus =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+  }
+  clearTimeout(_searchState.debounceTimer);
+  _searchState.inflight = null;
   els.searchModal.classList.remove("hidden");
   els.searchModal.setAttribute("aria-hidden", "false");
   els.searchInput.value = "";
-  els.searchResults.innerHTML = `<div class="search-hint">최소 2글자 입력해 검색</div>`;
-  _searchState.items = [];
-  _searchState.selectedIndex = 0;
+  clearSearchResults();
+  setSearchStatus("");
   _searchState.lastQuery = "";
   setTimeout(() => els.searchInput.focus(), 0);
 }
 
 function closeSearchModal() {
   if (!els.searchModal) return;
+  clearTimeout(_searchState.debounceTimer);
+  _searchState.inflight = null;
   els.searchModal.classList.add("hidden");
   els.searchModal.setAttribute("aria-hidden", "true");
+  setSearchExpanded(false);
+  setSearchStatus("");
+  const returnFocus = _searchState.returnFocus;
+  _searchState.returnFocus = null;
+  if (returnFocus?.isConnected) returnFocus.focus();
 }
 
 async function runSearch(q) {
   const trimmed = q.trim();
   if (trimmed.length < 2) {
-    els.searchResults.innerHTML = `<div class="search-hint">최소 2글자 입력해 검색</div>`;
-    _searchState.items = [];
-    _searchState.selectedIndex = 0;
+    _searchState.inflight = null;
+    _searchState.lastQuery = "";
+    clearSearchResults();
+    setSearchStatus(trimmed ? "한 글자 더 입력하세요." : "");
     return;
   }
   if (trimmed === _searchState.lastQuery) return;
@@ -5362,6 +5401,8 @@ async function runSearch(q) {
   // 이전 inflight 무시 (덮어쓰기)
   const myToken = (_searchState.inflight = Symbol("search"));
   els.searchResults.innerHTML = `<div class="search-hint">검색 중…</div>`;
+  setSearchExpanded(false);
+  setSearchStatus("검색 중입니다.");
   try {
     const res = await fetch(
       `/api/search?q=${encodeURIComponent(trimmed)}`,
@@ -5370,7 +5411,10 @@ async function runSearch(q) {
     renderSearchResults(res, trimmed);
   } catch (err) {
     if (_searchState.inflight !== myToken) return;
+    _searchState.lastQuery = "";
     els.searchResults.innerHTML = `<div class="search-hint">검색 실패: ${escapeHtml(err.message)}</div>`;
+    setSearchExpanded(false);
+    setSearchStatus("검색에 실패했습니다. 다시 시도할 수 있습니다.");
   }
 }
 
@@ -5419,6 +5463,8 @@ function renderSearchResults(res, q) {
 
   if (items.length === 0) {
     els.searchResults.innerHTML = `<div class="search-hint">결과 없음</div>`;
+    setSearchExpanded(false);
+    setSearchStatus("검색 결과가 없습니다.");
     return;
   }
   const sections = [];
@@ -5437,7 +5483,7 @@ function renderSearchResults(res, q) {
     for (const it of group) {
       const idxInFlat = items.indexOf(it);
       sections.push(`
-        <div class="search-item" data-idx="${idxInFlat}">
+        <div id="search-option-${idxInFlat}" class="search-item" role="option" aria-selected="false" data-idx="${idxInFlat}">
           <div class="search-item-label">${highlight(it.label, q)}</div>
           <div class="search-item-sublabel">${highlight(it.sublabel, q)}</div>
         </div>
@@ -5446,6 +5492,8 @@ function renderSearchResults(res, q) {
     }
   }
   els.searchResults.innerHTML = sections.join("");
+  setSearchExpanded(true);
+  setSearchStatus(`검색 결과 ${items.length}개`);
   updateSearchSelection();
   els.searchResults.querySelectorAll(".search-item").forEach((el) => {
     el.addEventListener("click", () => {
@@ -5461,13 +5509,23 @@ function renderSearchResults(res, q) {
 
 function updateSearchSelection() {
   const nodes = els.searchResults.querySelectorAll(".search-item");
+  let activeId = "";
   nodes.forEach((n) => {
     const isActive = Number(n.dataset.idx) === _searchState.selectedIndex;
     n.classList.toggle("active", isActive);
+    n.setAttribute("aria-selected", String(isActive));
+    if (isActive) {
+      activeId = n.id;
+    }
     if (isActive && typeof n.scrollIntoView === "function") {
       n.scrollIntoView({ block: "nearest" });
     }
   });
+  if (activeId) {
+    els.searchInput?.setAttribute("aria-activedescendant", activeId);
+  } else {
+    els.searchInput?.removeAttribute("aria-activedescendant");
+  }
 }
 
 function moveSearchSelection(delta) {
@@ -5765,76 +5823,6 @@ function showPastConversationModal(note, data) {
       cleanup();
     }
   });
-}
-
-function refreshLearningRecommendation() {
-  const focus = selectLearningFocus(
-    state.chapters,
-    getRecentChapterId(),
-  );
-  if (!focus) {
-    state.suggestion = null;
-    els.suggestion.replaceChildren();
-    els.suggestion.classList.add("hidden");
-    return;
-  }
-  state.suggestion = {
-    recommendedChapterId: focus.chapter.id,
-    rationale: focus.rationale,
-    mode: focus.mode,
-    targetDepth: focus.targetDepth,
-  };
-  els.suggestion.classList.remove("hidden");
-  renderSuggestion();
-}
-
-function renderSuggestion() {
-  const s = state.suggestion;
-  if (!s) {
-    els.suggestion.innerHTML = `<div class="empty">이어갈 학습이 아직 없어요</div>`;
-    return;
-  }
-  const chapter = state.chapters.find((c) => c.id === s.recommendedChapterId);
-  const modeLabel =
-    s.mode === "first"
-      ? "첫 번째 나선"
-      : s.mode === "continue"
-        ? "다음 학습"
-        : s.mode === "deepen"
-          ? "한 번 더 깊이"
-          : "다시 연결";
-  const buttonLabel =
-    s.mode === "deepen"
-      ? `d${s.targetDepth ?? 2}로 이어가기`
-      : "학습 시작";
-  const chapterIndex = chapter ? state.chapters.indexOf(chapter) : -1;
-  els.suggestion.innerHTML = `
-    <div class="suggestion-mode"><span>${escapeHtml(modeLabel)}</span>${s.targetDepth ? `<small>d${s.targetDepth}</small>` : ""}</div>
-    ${
-      chapter
-        ? `<div class="suggestion-title">${escapeHtml(chapter.title)}</div>`
-        : ""
-    }
-    <div class="suggestion-rationale">${escapeHtml(s.rationale)}</div>
-    ${
-      chapterIndex >= 0
-        ? `<div class="suggestion-position">${chapterIndex + 1} / ${state.chapters.length} 챕터</div>`
-        : ""
-    }
-    ${
-      chapter
-        ? `<button class="start-suggested primary">${escapeHtml(buttonLabel)} <span aria-hidden="true">→</span></button>`
-        : ""
-    }
-  `;
-  const btn = els.suggestion.querySelector(".start-suggested");
-  if (btn && chapter) {
-    btn.addEventListener("click", async () => {
-      const decision = await handleSessionInterruption();
-      if (decision === "cancel") return;
-      startSession(chapter.id);
-    });
-  }
 }
 
 // ──────────────────────────────────────────────────────────
@@ -6802,7 +6790,6 @@ function updateTopbar() {
       const total = Number(activeRoadmap.chapterCount ?? state.chapters.length);
       els.topbar.innerHTML = `
         <button class="current-chapter-jump topbar-home-jump" type="button" title="현재 학습 경로 보기" aria-label="${escapeAttr(displayRepoName(activeRoadmap.name))} — 학습 경로 보기" aria-controls="roadmap-list" aria-expanded="${String(!els.roadmapList.classList.contains("hidden"))}">
-          <span class="topbar-home-label">오늘의 학습</span>
           <strong class="topbar-chapter-title">${escapeHtml(displayRepoName(activeRoadmap.name))}</strong>
           <span class="topbar-home-progress">${completed}/${total}</span>
           <svg class="current-chapter-jump-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -6813,7 +6800,6 @@ function updateTopbar() {
     } else {
       els.topbar.innerHTML = `
         <div class="topbar-home-copy">
-          <span>오늘의 학습</span>
           <strong>학습 경로를 준비해 주세요</strong>
         </div>
       `;

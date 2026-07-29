@@ -55,6 +55,15 @@ describe("learning hub recommendation", () => {
 });
 
 describe("learning hub rendering", () => {
+  test("uses the real hub structure as a neutral loading skeleton", () => {
+    const html = buildLearningHubMarkup({ loading: true });
+    assert.match(html, /learning-hub is-loading/);
+    assert.match(html, /aria-busy="true"/);
+    assert.match(html, /hub-skeleton-title/);
+    assert.doesNotMatch(html, /첫 학습 경로를 선택해 주세요/);
+    assert.doesNotMatch(html, /data-hub-action=/);
+  });
+
   test("summarizes completed chapters, passes and notes", () => {
     assert.deepEqual(
       getLearningMetrics(
@@ -99,6 +108,8 @@ describe("learning hub rendering", () => {
     assert.match(html, /data-session-id="pause-&quot;1"/);
     assert.match(html, /&lt;script&gt;bad\(\)&lt;\/script&gt;/);
     assert.doesNotMatch(html, /<script>/);
+    assert.match(html, /class="hub-ambient-geometry"/);
     assert.match(html, /<use href="#blue-welcome-geometry"><\/use>/);
+    assert.doesNotMatch(html, /class="hub-hero/);
   });
 });

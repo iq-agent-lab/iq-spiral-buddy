@@ -15,8 +15,8 @@
       rel="stylesheet"
       href="/vendor/highlight-github.css"
     />
-    <link rel="stylesheet" href="/blue-brand.css?v=0.6.9" />
-    <link rel="stylesheet" href="/helix.css?v=0.6.9" />
+    <link rel="stylesheet" href="/blue-brand.css?v=0.6.10" />
+    <link rel="stylesheet" href="/helix.css?v=0.6.10" />
   </head>
   <body class="dark-mode">
     <svg class="blue-symbol-library" width="0" height="0" aria-hidden="true" focusable="false">
@@ -82,7 +82,7 @@
         </div>
       </header>
 
-      <section class="sidebar-search-section" role="search" aria-label="목차 검색">
+      <section class="sidebar-search-section" role="search" aria-label="챕터 찾기">
         <div class="sidebar-search-wrap">
           <span class="sidebar-search-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -94,10 +94,10 @@
             id="sidebar-search"
             class="sidebar-search-input"
             type="search"
-            placeholder="현재 경로에서 챕터 찾기"
+            placeholder="챕터 찾기"
             autocomplete="off"
             spellcheck="false"
-            aria-label="목차 검색"
+            aria-label="챕터 찾기"
             aria-controls="roadmap-list chapter-list"
             aria-describedby="sidebar-search-meta"
             aria-keyshortcuts="Meta+F Control+F"
@@ -127,10 +127,6 @@
           <span class="caret">▼</span>
         </button>
         <div id="roadmap-list" class="roadmap-list hidden"></div>
-      </section>
-
-      <section class="suggestion" id="suggestion-box">
-        <div class="loading">다음 나선을 찾는 중…</div>
       </section>
 
       <section class="paused-section hidden" id="paused-section">
@@ -236,27 +232,18 @@
               <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
             </svg>
           </button>
-          <button id="lookup-toggle" class="action-btn icon-action-btn lookup-toggle-btn" title="사이드 노트 — 잠깐 더 알아보기 (⌘L)" aria-label="사이드 노트 열기" aria-controls="lookup-panel" aria-expanded="false">
+          <button id="lookup-toggle" class="action-btn icon-action-btn lookup-toggle-btn" title="보조 노트 열기 (⌘L)" aria-label="보조 노트 열기" aria-controls="lookup-panel" aria-expanded="false">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
               <line x1="15" y1="3" x2="15" y2="21"/>
             </svg>
-            <span>사이드 노트</span>
           </button>
         </div>
       </header>
 
       <div id="messages-wrap" class="messages-wrap">
         <div id="messages" class="messages">
-          <div class="placeholder spiral-welcome learning-hub">
-            <header class="hub-hero hub-hero--geometry">
-              <div class="welcome-mark" aria-hidden="true">
-                <svg class="welcome-geometry" viewBox="0 0 1000 720" preserveAspectRatio="xMidYMid slice">
-                  <use href="#blue-welcome-geometry"></use>
-                </svg>
-              </div>
-            </header>
-          </div>
+          <div class="learning-hub-bootstrap" role="status" aria-label="학습 홈 준비 중"></div>
         </div>
         <button id="scroll-bottom-btn" class="scroll-bottom-btn hidden" type="button" title="맨 아래로" aria-label="맨 아래로 스크롤">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -324,14 +311,10 @@
       <div id="status-bar" class="status-bar" role="status" aria-live="polite"></div>
     </main>
 
-    <div id="lookup-resizer" class="lookup-resizer hidden" role="separator" tabindex="0" aria-orientation="vertical" aria-label="사이드 노트 너비 조절" aria-valuemin="280" aria-valuemax="520" aria-valuenow="380"></div>
+    <div id="lookup-resizer" class="lookup-resizer hidden" role="separator" tabindex="0" aria-orientation="vertical" aria-label="보조 노트 너비 조절" aria-valuemin="280" aria-valuemax="520" aria-valuenow="380"></div>
 
-    <aside id="lookup-panel" class="lookup-panel hidden" aria-hidden="true" aria-label="사이드 노트">
+    <aside id="lookup-panel" class="lookup-panel hidden" aria-hidden="true" aria-label="보조 노트">
       <header class="lookup-panel-header">
-        <div class="lookup-panel-title">
-          <strong>사이드 노트</strong>
-          <small>궁금한 표현을 흐름 밖에서 잠깐 탐색하세요</small>
-        </div>
         <div class="lookup-panel-actions">
           <button id="lookup-expand" class="lookup-panel-mini icon-btn" type="button" title="전체화면 토글" aria-label="전체화면 토글">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -342,7 +325,7 @@
             </svg>
           </button>
           <button id="lookup-clear" class="lookup-panel-mini" type="button" title="모든 카드 지우기">전체 지우기</button>
-          <button id="lookup-close" class="lookup-panel-mini icon-btn" type="button" title="사이드 노트 닫기" aria-label="사이드 노트 닫기">
+          <button id="lookup-close" class="lookup-panel-mini icon-btn" type="button" title="보조 노트 닫기" aria-label="보조 노트 닫기">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <line x1="18" y1="6" x2="6" y2="18"/>
               <line x1="6" y1="6" x2="18" y2="18"/>
@@ -359,7 +342,7 @@
           </svg>
         </button>
       </div>
-      <div id="lookup-direct-resizer" class="lookup-direct-resizer" role="separator" tabindex="0" aria-orientation="horizontal" aria-label="사이드 노트 입력 높이 조절" aria-valuemin="60" aria-valuemax="420" aria-valuenow="72" title="드래그하거나 방향키로 입력창 높이 조절 (더블클릭=리셋)"></div>
+      <div id="lookup-direct-resizer" class="lookup-direct-resizer" role="separator" tabindex="0" aria-orientation="horizontal" aria-label="보조 노트 입력 높이 조절" aria-valuemin="60" aria-valuemax="420" aria-valuenow="72" title="드래그하거나 방향키로 입력창 높이 조절 (더블클릭=리셋)"></div>
       <form id="lookup-direct-form" class="lookup-direct-form">
         <textarea id="lookup-direct-context" class="lookup-direct-context hidden" placeholder="이 키워드를 어떤 맥락에서 알고 싶은지 (선택)..." rows="2" aria-label="추가 문맥"></textarea>
         <div class="lookup-direct-row">
@@ -446,19 +429,20 @@
       <div class="modal search-modal" role="dialog" aria-modal="true" aria-labelledby="search-modal-title">
         <h2 id="search-modal-title" class="visually-hidden">전체 학습 검색</h2>
         <div class="search-input-wrap">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="search-icon">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="search-icon">
             <circle cx="11" cy="11" r="8"></circle>
             <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
           </svg>
-          <input id="search-input" type="text" placeholder="로드맵 · 챕터 · 노트 전체 검색…" autocomplete="off" spellcheck="false" aria-label="전체 학습 검색" />
-          <kbd class="search-esc-hint">ESC</kbd>
+          <input id="search-input" type="text" role="combobox" placeholder="로드맵 · 챕터 · 노트 검색" autocomplete="off" spellcheck="false" aria-label="학습 검색" aria-controls="search-results" aria-autocomplete="list" aria-haspopup="listbox" aria-expanded="false" />
+          <button id="search-close-btn" class="search-close-btn" type="button" aria-label="검색 닫기" title="검색 닫기 (Esc)">
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
         </div>
-        <div id="search-results" class="search-results"></div>
-        <div class="search-footer">
-          <span><kbd>↑</kbd><kbd>↓</kbd> 이동</span>
-          <span><kbd>Enter</kbd> 열기</span>
-          <span><kbd>ESC</kbd> 닫기</span>
-        </div>
+        <div id="search-results" class="search-results" role="listbox" aria-label="검색 결과"></div>
+        <div id="search-status" class="visually-hidden" role="status" aria-live="polite"></div>
       </div>
     </div>
 
@@ -784,6 +768,6 @@
       </div>
     </div>
 
-    <script type="module" src="/app.js?v=0.6.9"></script>
+    <script type="module" src="/app.js?v=0.6.10"></script>
   </body>
 </html>

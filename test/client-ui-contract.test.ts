@@ -36,10 +36,13 @@ describe("client UI contracts", () => {
   test("sidebar search is self-evident without a repeated heading", () => {
     assert.match(
       html,
-      /class="sidebar-search-section" role="search" aria-label="목차 검색"/,
+      /class="sidebar-search-section" role="search" aria-label="챕터 찾기"/,
     );
     assert.doesNotMatch(html, /id="sidebar-search-title"/);
     assert.match(html, /aria-controls="roadmap-list chapter-list"/);
+    assert.match(html, /placeholder="챕터 찾기"/);
+    assert.match(html, /aria-label="챕터 찾기"/);
+    assert.doesNotMatch(html, /현재 경로에서 챕터 찾기/);
     assert.match(html, /id="sidebar-search-meta"[^>]*aria-live="polite"/);
     assert.doesNotMatch(html, /입력하는 즉시 학습 목록을 좁혀요/);
     assert.doesNotMatch(app, /입력하는 즉시 학습 목록을 좁혀요/);
@@ -54,7 +57,7 @@ describe("client UI contracts", () => {
     );
   });
 
-  test("the learning home pairs an abstract helix field with a clear next action", () => {
+  test("the learning home opens directly with ambient geometry and a clear next action", () => {
     assert.doesNotMatch(html, /SPIRAL · BLUE/);
     assert.doesNotMatch(app, /SPIRAL · BLUE/);
     assert.doesNotMatch(html, /반복은 제자리가 아니라/);
@@ -65,16 +68,73 @@ describe("client UI contracts", () => {
     assert.match(html, /id="blue-vortex-stack"/);
     assert.match(html, /class="blue-vortex-band"/);
     assert.match(html, /class="blue-vortex-line"/);
-    assert.match(html, /<use href="#blue-welcome-geometry"><\/use>/);
-    assert.match(app, /<use href="#blue-welcome-geometry"><\/use>/);
+    assert.doesNotMatch(html, /<use href="#blue-welcome-geometry"><\/use>/);
+    assert.doesNotMatch(app, /<use href="#blue-welcome-geometry"><\/use>/);
+    assert.doesNotMatch(html, /class="hub-hero hub-hero--geometry"/);
+    assert.doesNotMatch(app, /WELCOME_EMPTY_HTML/);
+    assert.match(learningHub, /class="hub-ambient-geometry"/);
+    assert.match(learningHub, /<use href="#blue-welcome-geometry"><\/use>/);
+    assert.doesNotMatch(learningHub, /class="hub-hero/);
     assert.match(learningHub, /class="hub-focus"/);
     assert.match(learningHub, /data-hub-action="\$\{primaryAction\}"/);
     assert.match(learningHub, /class="hub-progress"/);
     assert.doesNotMatch(learningHub, /class="hub-flow"/);
-    assert.match(app, /function renderLearningHub\(\)/);
-    assert.match(helixCss, /\.hub-hero--geometry/);
-    assert.match(helixCss, /\.learning-hub[\s\S]*?\.welcome-geometry/);
+    assert.match(
+      app,
+      /function renderLearningHub\(\{ loading = false \} = \{\}\)/,
+    );
+    assert.match(helixCss, /\.hub-ambient-geometry/);
+    assert.doesNotMatch(helixCss, /\.hub-hero--geometry/);
+    const bootstrap = app.slice(
+      app.indexOf('document.addEventListener("DOMContentLoaded"'),
+      app.indexOf("function wireEvents()"),
+    );
+    assert.ok(
+      bootstrap.indexOf("renderLearningHub({ loading: true });") <
+        bootstrap.indexOf("await loadInitial();"),
+      "the learning home should render before initial data requests finish",
+    );
+    assert.match(app, /if \(!state\.session\) renderLearningHub\(\{ loading: true \}\);/);
     assert.doesNotMatch(html, /welcome-steps/);
+  });
+
+  test("secondary navigation stays compact and avoids duplicate next-learning UI", () => {
+    assert.doesNotMatch(html, /id="suggestion-box"/);
+    assert.doesNotMatch(app, /refreshLearningRecommendation|renderSuggestion/);
+    assert.doesNotMatch(app, /오늘의 학습/);
+
+    const lookupToggle = html.slice(
+      html.indexOf('id="lookup-toggle"'),
+      html.indexOf("</button>", html.indexOf('id="lookup-toggle"')),
+    );
+    assert.match(lookupToggle, /aria-label="보조 노트 열기"/);
+    assert.doesNotMatch(lookupToggle, /<span>/);
+    assert.doesNotMatch(html, /class="lookup-panel-title"/);
+    assert.match(
+      helixCss,
+      /#actions \.lookup-toggle-btn \{[\s\S]*?width: 36px !important;/,
+    );
+  });
+
+  test("global search uses one compact input surface without instructional chrome", () => {
+    assert.match(html, /placeholder="로드맵 · 챕터 · 노트 검색"/);
+    assert.match(
+      html,
+      /id="search-input"[^>]*role="combobox"[^>]*aria-expanded="false"/,
+    );
+    assert.match(html, /id="search-close-btn"[^>]*aria-label="검색 닫기"/);
+    assert.match(html, /id="search-status"[^>]*role="status"[^>]*aria-live="polite"/);
+    assert.doesNotMatch(html, /search-footer|search-esc-hint/);
+    assert.doesNotMatch(app, /최소 2글자 입력해 검색/);
+    assert.match(app, /els\.searchResults\?\.replaceChildren\(\)/);
+    assert.match(app, /_searchState\.inflight = null;[\s\S]*?clearSearchResults\(\);/);
+    assert.match(app, /document\.activeElement === last/);
+    assert.match(app, /aria-activedescendant/);
+    assert.match(
+      helixCss,
+      /#search-modal #search-input[\s\S]*?border: 0 !important;[\s\S]*?box-shadow: none !important;/,
+    );
+    assert.match(helixCss, /\.search-results:empty \{[\s\S]*?display: none;/);
   });
 
   test("the learning home appears before slow secondary requests and survives start failures", () => {
@@ -123,7 +183,7 @@ describe("client UI contracts", () => {
       helixCss,
       /\.progress-mini \{[\s\S]*?height: 6px !important;/,
     );
-    assert.match(helixCss, /\.suggestion-mode::after[\s\S]*?display: none !important;/);
+    assert.doesNotMatch(html, /class="suggestion"/);
   });
 
   test("session actions use short labels that describe their real behavior", () => {
@@ -221,9 +281,9 @@ describe("client UI contracts", () => {
       brandCss,
       /\.composer \{[\s\S]*?border-top-left-radius: 16px !important;/,
     );
-    assert.match(html, /blue-brand\.css\?v=0\.6\.9/);
-    assert.match(html, /helix\.css\?v=0\.6\.9/);
-    assert.match(html, /app\.js\?v=0\.6\.9/);
+    assert.match(html, /blue-brand\.css\?v=0\.6\.10/);
+    assert.match(html, /helix\.css\?v=0\.6\.10/);
+    assert.match(html, /app\.js\?v=0\.6\.10/);
   });
 
   test("the 820px mobile shell keeps the main column visible and hides inert resizers", () => {

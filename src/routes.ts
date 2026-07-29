@@ -56,6 +56,7 @@ import {
   normalizeRepoName,
   findDomainForCategory,
 } from "./categories.js";
+import { mapWithConcurrency } from "./async-utils.js";
 
 // GET /roadmaps 의 per-roadmap 보강 — 노트 진도(visited/maxDepth/depths/lastDate) +
 // 카테고리/도메인/계층(hierarchy) 부착. (GET /roadmaps 핸들러에서 분리.)
@@ -611,41 +612,35 @@ function registerSearchNotesRoutes(app: Hono, config: Config) {
         obsidianUrl: obsidianUri(config, n.filePath),
       }));
 
-    // 3) 챕터 매칭 — 매칭된 로드맵 + 노트가 있는 로드맵 안에서만 (성능)
-    const candidateRoadmaps = new Map<string, Roadmap>();
-    for (const r of roadmapMatches.map((rm) => roadmaps.find((r2) => r2.id === rm.id))) {
-      if (r) candidateRoadmaps.set(r.id, r);
-    }
-    for (const n of noteMatches) {
-      if (n.roadmapId) {
-        const r = roadmaps.find((r2) => r2.id === n.roadmapId);
-        if (r) candidateRoadmaps.set(r.id, r);
-      }
-    }
-    const chapterMatches: Array<{
+    // 3) 챕터 매칭 — 로드맵/노트 매칭 여부와 무관하게 모든 설치 로드맵을
+    // 검색한다. 파일 I/O는 제한된 동시성으로 수행하고 설치 순서를 보존한다.
+    type ChapterMatch = {
       roadmapId: string;
       roadmapName: string;
       chapterId: string;
       title: string;
-    }> = [];
-    for (const r of candidateRoadmaps.values()) {
-      const chapters = await loadRoadmapChapters(r);
-      for (const ch of chapters) {
-        if (
-          ch.title.toLowerCase().includes(q) ||
-          ch.id.toLowerCase().includes(q)
-        ) {
-          chapterMatches.push({
+    };
+    const chapterMatchGroups = await mapWithConcurrency(
+      roadmaps,
+      4,
+      async (r): Promise<ChapterMatch[]> => {
+        const chapters = await loadRoadmapChapters(r);
+        return chapters
+          .filter(
+            (ch) =>
+              ch.title.toLowerCase().includes(q) ||
+              ch.id.toLowerCase().includes(q),
+          )
+          .slice(0, 15)
+          .map((ch) => ({
             roadmapId: r.id,
             roadmapName: r.name,
             chapterId: ch.id,
             title: ch.title,
-          });
-          if (chapterMatches.length >= 15) break;
-        }
-      }
-      if (chapterMatches.length >= 15) break;
-    }
+          }));
+      },
+    );
+    const chapterMatches = chapterMatchGroups.flat().slice(0, 15);
 
     return c.json({
       roadmaps: roadmapMatches,

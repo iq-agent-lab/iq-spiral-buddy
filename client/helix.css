@@ -1,5 +1,5 @@
 /* -------------------------------------------------------------------------- */
-/* v0.6.9 — geometric welcome, clear progress and softly joined work surfaces */
+/* v0.6.10 — direct learning home, quieter search and compact navigation */
 /* -------------------------------------------------------------------------- */
 
 .blue-symbol-library {
@@ -25,9 +25,7 @@
 /* Decorative rings made the surfaces feel busier than the learning content. */
 
 body::before,
-#sidebar > .brand::before,
-.suggestion::after,
-.suggestion-mode::after {
+#sidebar > .brand::before {
   display: none !important;
   content: none !important;
 }
@@ -82,7 +80,8 @@ body.motion-on #sidebar > .brand .logo-spiral .spiral-rotate {
   animation: helix-logo-pulse 2.4s ease-in-out infinite;
 }
 
-/* Textless geometric field. It fills the hero, but never creates page overflow. */
+/* The learning home opens on its content. Geometry stays as a quiet backdrop,
+   never as a separate full-page welcome step. */
 
 body:is(.light-mode, .dark-mode) .learning-hub.spiral-welcome {
   position: relative;
@@ -102,28 +101,15 @@ body:is(.light-mode, .dark-mode) .learning-hub.spiral-welcome {
   text-align: left;
 }
 
-.learning-hub .hub-hero {
-  position: relative;
-  isolation: isolate;
-  width: 100%;
-}
-
-.learning-hub .hub-hero--geometry {
-  min-height: clamp(350px, 54vh, 620px);
-  overflow: hidden;
-  background: transparent;
-  border: 0;
-  border-radius: 0;
-}
-
 body:is(.light-mode, .dark-mode)
   .learning-hub
-  .hub-hero--geometry
-  .welcome-mark {
+  .hub-ambient-geometry {
   position: absolute;
-  inset: clamp(-34px, -2.5vw, -16px);
-  width: auto !important;
-  height: auto !important;
+  z-index: 0;
+  top: clamp(-260px, -20vw, -150px);
+  right: clamp(-180px, -8vw, -60px);
+  width: min(880px, 78vw) !important;
+  height: clamp(300px, 38vw, 470px) !important;
   margin: 0 !important;
   padding: 0 !important;
   overflow: hidden;
@@ -136,21 +122,31 @@ body:is(.light-mode, .dark-mode)
     var(--blue-cobalt) 74%,
     var(--blue-line-strong)
   ) !important;
-  opacity: 0.68;
+  opacity: 0.16;
   pointer-events: none;
+  -webkit-mask-image: linear-gradient(
+    180deg,
+    rgb(0 0 0 / 82%),
+    rgb(0 0 0 / 18%) 68%,
+    transparent
+  );
+  mask-image: linear-gradient(
+    180deg,
+    rgb(0 0 0 / 82%),
+    rgb(0 0 0 / 18%) 68%,
+    transparent
+  );
 }
 
 body.light-mode
   .learning-hub
-  .hub-hero--geometry
-  .welcome-mark {
-  opacity: 0.45;
+  .hub-ambient-geometry {
+  opacity: 0.12;
 }
 
 body:is(.light-mode, .dark-mode)
   .learning-hub
-  .hub-hero--geometry
-  .welcome-mark
+  .hub-ambient-geometry
   svg.welcome-geometry {
   display: block;
   width: 100% !important;
@@ -162,7 +158,10 @@ body:is(.light-mode, .dark-mode)
   animation: none !important;
 }
 
-/* Learning-hub actions remain available below the quiet geometric cover. */
+.learning-hub > :not(.hub-ambient-geometry) {
+  position: relative;
+  z-index: 1;
+}
 
 .learning-hub :is(h2, p, dl, ol) {
   margin-top: 0;
@@ -178,6 +177,91 @@ body:is(.light-mode, .dark-mode)
   border: 1px solid var(--blue-line);
   border-radius: 18px;
   box-shadow: var(--blue-shadow-sm);
+}
+
+.hub-skeleton {
+  display: block;
+  overflow: hidden;
+  background: linear-gradient(
+    100deg,
+    var(--blue-paper-pressed) 22%,
+    color-mix(in srgb, var(--blue-cobalt-soft) 72%, var(--blue-paper)) 42%,
+    var(--blue-paper-pressed) 62%
+  );
+  background-size: 240% 100%;
+  border-radius: 999px;
+  animation: hub-skeleton-drift 2.2s ease-in-out infinite;
+}
+
+@keyframes hub-skeleton-drift {
+  from {
+    background-position: 110% 0;
+  }
+  to {
+    background-position: -110% 0;
+  }
+}
+
+.hub-skeleton-kicker {
+  width: 92px;
+  height: 10px;
+}
+
+.hub-skeleton-badge {
+  width: 46px;
+  height: 25px;
+}
+
+.hub-skeleton-title {
+  width: min(470px, 72%);
+  height: clamp(27px, 3.2vw, 38px);
+  margin-bottom: 13px;
+  border-radius: 10px;
+}
+
+.hub-skeleton-copy {
+  width: min(560px, 88%);
+  height: 13px;
+  margin-bottom: 16px;
+}
+
+.hub-skeleton-meta {
+  width: 210px;
+  max-width: 64%;
+  height: 10px;
+}
+
+.hub-skeleton-button {
+  width: 112px;
+  height: 40px;
+  border-radius: 10px;
+}
+
+.hub-skeleton-button.is-secondary {
+  width: 102px;
+}
+
+.hub-loading-panel {
+  display: grid;
+  gap: 20px;
+}
+
+.hub-skeleton-section {
+  width: 124px;
+  height: 24px;
+  border-radius: 7px;
+}
+
+.hub-skeleton-panel {
+  width: 100%;
+  height: 112px;
+  border-radius: 16px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hub-skeleton {
+    animation: none;
+  }
 }
 
 .hub-focus-heading,
@@ -551,28 +635,13 @@ body:is(.light-mode, .dark-mode) #actions .command-search-btn {
 }
 
 body:is(.light-mode, .dark-mode) #actions .lookup-toggle-btn {
-  gap: 7px;
+  width: 36px !important;
+  min-width: 36px !important;
+  padding: 0 !important;
 }
 
-.lookup-panel-title {
-  display: grid;
-  min-width: 0;
-  margin-right: auto;
-  line-height: 1.2;
-}
-
-.lookup-panel-title strong {
-  color: var(--blue-ink);
-  font-size: 12px;
-}
-
-.lookup-panel-title small {
-  max-width: 26ch;
-  overflow: hidden;
-  color: var(--blue-ink-faint);
-  font-size: 8.5px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.lookup-panel-header {
+  justify-content: flex-end;
 }
 
 .lookup-panel-actions {
@@ -585,14 +654,6 @@ body:is(.light-mode, .dark-mode) #actions .lookup-toggle-btn {
 .topbar-home-jump {
   min-width: 0;
   max-width: 100%;
-}
-
-.topbar-home-label {
-  flex: 0 0 auto;
-  color: var(--blue-ink-faint);
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.03em;
 }
 
 .topbar-home-progress {
@@ -613,21 +674,9 @@ body:is(.light-mode, .dark-mode) #actions .lookup-toggle-btn {
   line-height: 1.25;
 }
 
-.topbar-home-copy span {
-  color: var(--blue-ink-faint);
-  font-size: 9px;
-}
-
 .topbar-home-copy strong {
   color: var(--blue-ink);
   font-size: 13px;
-}
-
-.suggestion-position {
-  margin-top: 8px;
-  color: var(--blue-ink-faint);
-  font-size: 9.5px;
-  font-variant-numeric: tabular-nums;
 }
 
 /* Rounded junctions replace harsh crosshair-like panel intersections. */
@@ -692,6 +741,151 @@ body:is(.light-mode, .dark-mode) #actions .lookup-toggle-btn {
   }
 }
 
+/* Search is one compact command surface. The wrapper owns the field chrome so
+   the native input never draws a second box inside it. */
+
+#search-modal.modal-overlay {
+  align-items: flex-start !important;
+  justify-content: center;
+  padding: clamp(24px, 9vh, 86px) 16px 20px !important;
+}
+
+body:is(.light-mode, .dark-mode) .search-modal {
+  width: min(620px, calc(100vw - 32px)) !important;
+  max-width: none !important;
+  max-height: min(620px, calc(100vh - 40px));
+  padding: 6px !important;
+  overflow: hidden;
+  background: var(--blue-paper) !important;
+  border: 1px solid var(--blue-line-strong) !important;
+  border-radius: 18px !important;
+  box-shadow:
+    0 26px 70px rgb(4 12 26 / 24%),
+    0 4px 14px rgb(4 12 26 / 10%) !important;
+}
+
+body:is(.light-mode, .dark-mode) .search-input-wrap {
+  min-height: 58px;
+  flex: 0 0 auto;
+  gap: 12px;
+  padding: 7px 8px 7px 14px !important;
+  background: var(--blue-paper-muted) !important;
+  border: 1px solid transparent !important;
+  border-radius: 13px;
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+body:is(.light-mode, .dark-mode) .search-input-wrap:focus-within {
+  background: var(--blue-paper) !important;
+  border-color: color-mix(
+    in srgb,
+    var(--blue-cobalt) 68%,
+    var(--blue-line)
+  ) !important;
+  box-shadow: 0 0 0 3px
+    color-mix(in srgb, var(--blue-cobalt) 14%, transparent) !important;
+}
+
+body:is(.light-mode, .dark-mode) .search-icon {
+  width: 20px;
+  height: 20px;
+  color: var(--blue-cobalt-strong);
+}
+
+body:is(.light-mode, .dark-mode) #search-modal #search-input,
+body:is(.light-mode, .dark-mode) #search-modal #search-input:focus {
+  min-width: 0;
+  height: 42px;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+  color: var(--blue-ink) !important;
+  font-size: 15.5px;
+  font-weight: 550;
+}
+
+body:is(.light-mode, .dark-mode) #search-modal #search-input::placeholder {
+  color: var(--blue-ink-faint) !important;
+  opacity: 0.88;
+}
+
+.search-close-btn {
+  display: inline-grid;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  padding: 0;
+  place-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 10px;
+  color: var(--blue-ink-faint);
+  cursor: pointer;
+}
+
+.search-close-btn:hover,
+.search-close-btn:focus-visible {
+  background: var(--blue-cobalt-soft);
+  color: var(--blue-cobalt-strong);
+  outline: 0;
+}
+
+.search-results {
+  min-height: 0;
+  max-height: min(500px, calc(100vh - 150px));
+  flex: 0 1 auto;
+  margin-top: 5px;
+  padding: 5px !important;
+  overflow-y: auto;
+}
+
+.search-results:empty {
+  display: none;
+}
+
+.search-section-label {
+  padding: 9px 10px 5px;
+  color: var(--blue-ink-faint);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+body:is(.light-mode, .dark-mode) .search-item {
+  padding: 10px 11px;
+  border: 1px solid transparent !important;
+  border-radius: 10px;
+}
+
+body:is(.light-mode, .dark-mode) .search-item.active {
+  background: var(--blue-cobalt-soft) !important;
+  border-color: color-mix(
+    in srgb,
+    var(--blue-cobalt) 28%,
+    transparent
+  ) !important;
+}
+
+.search-item-label {
+  font-size: 13.5px;
+  font-weight: 650;
+}
+
+.search-item-sublabel {
+  margin-top: 3px;
+  font-size: 10.5px;
+}
+
+.search-hint {
+  padding: 22px 14px;
+}
+
 /* React to the actual topbar width, not only to the window width. */
 
 #topbar {
@@ -710,13 +904,6 @@ body:is(.light-mode, .dark-mode) #actions .lookup-toggle-btn {
     height: 36px !important;
     justify-content: center;
     padding: 0 !important;
-  }
-}
-
-@container (min-width: 851px) {
-  body:is(.light-mode, .dark-mode) #actions .lookup-toggle-btn {
-    width: auto !important;
-    padding: 0 11px !important;
   }
 }
 
@@ -787,8 +974,14 @@ body:is(.light-mode, .dark-mode) #actions .lookup-toggle-btn {
     padding: 14px !important;
   }
 
-  .learning-hub .hub-hero--geometry {
-    min-height: clamp(290px, 48vh, 430px);
+  body:is(.light-mode, .dark-mode)
+    .learning-hub
+    .hub-ambient-geometry {
+    top: -120px;
+    right: -150px;
+    width: 620px !important;
+    height: 300px !important;
+    opacity: 0.12;
   }
 
   .hub-focus-body {
@@ -803,6 +996,33 @@ body:is(.light-mode, .dark-mode) #actions .lookup-toggle-btn {
 }
 
 @media (max-width: 560px) {
+  #search-modal.modal-overlay {
+    padding: 12px 10px !important;
+  }
+
+  body:is(.light-mode, .dark-mode) .search-modal {
+    width: calc(100vw - 20px) !important;
+    max-height: calc(100vh - 24px);
+    max-height: calc(100dvh - 24px);
+    border-radius: 16px !important;
+  }
+
+  .search-results {
+    max-height: calc(100vh - 104px);
+    max-height: calc(100dvh - 104px);
+  }
+
+  body:is(.light-mode, .dark-mode) #search-modal #search-input,
+  body:is(.light-mode, .dark-mode) #search-modal #search-input:focus {
+    font-size: 16px;
+  }
+
+  .search-close-btn {
+    width: 44px;
+    height: 44px;
+    flex-basis: 44px;
+  }
+
   .hub-progress-content {
     grid-template-columns: 1fr;
   }
