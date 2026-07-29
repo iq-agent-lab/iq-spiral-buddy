@@ -30,6 +30,11 @@ import {
   CONTEXT_ICON_SVG,
 } from "./icons.js";
 import { LLM_PRESETS } from "./llm-presets.js";
+import {
+  buildLearningHubMarkup,
+  getLatestHistoryNote,
+  selectLearningFocus,
+} from "./learning-hub.js";
 
 // ──────────────────────────────────────────────────────────
 // State
@@ -83,14 +88,14 @@ const LS_KEY = "spiral-buddy:lastRoadmapId";
 // DEPTH_ICONS, CONTEXT_ICON_SVG)는 ./icons.js 로 분리됨.
 
 const WELCOME_EMPTY_HTML = `
-  <div class="placeholder spiral-welcome">
-    <div class="welcome-mark" aria-hidden="true">
-      <svg viewBox="0 0 64 64">
-        <path d="M32 32 m0 0 a3 3 0 0 1 6 0 a6 6 0 0 1 -12 0 a9 9 0 0 1 18 0 a12 12 0 0 1 -24 0 a15 15 0 0 1 30 0 a18 18 0 0 1 -36 0 a21 21 0 0 1 42 0" />
-        <circle cx="32" cy="32" r="2" />
-      </svg>
-    </div>
-    <p class="welcome-principle">반복은 제자리가 아니라,<br />더 깊어지는 나선이다.</p>
+  <div class="placeholder spiral-welcome learning-hub">
+    <header class="hub-hero hub-hero--geometry">
+      <div class="welcome-mark" aria-hidden="true">
+        <svg class="welcome-geometry" viewBox="0 0 1000 720" preserveAspectRatio="xMidYMid slice">
+          <use href="#blue-welcome-geometry"></use>
+        </svg>
+      </div>
+    </header>
   </div>`;
 
 function displayWorkspaceName(workspace) {
@@ -117,6 +122,7 @@ const els = {};
 function cacheEls() {
   els.meta = $("meta");
   els.sidebarToggle = $("sidebar-toggle");
+  els.sidebarScrim = $("sidebar-scrim");
   els.roadmapCurrent = $("roadmap-current");
   els.roadmapList = $("roadmap-list");
   // v0.5.51 사이드바 검색
@@ -125,6 +131,7 @@ function cacheEls() {
   els.sidebarSearchMeta = $("sidebar-search-meta");
   els.suggestion = $("suggestion-box");
   els.chapterList = $("chapter-list");
+  els.chapterProgressSummary = $("chapter-progress-summary");
   els.historyList = $("history-list");
   els.topbar = $("current-chapter");
   els.messages = $("messages");
@@ -163,6 +170,7 @@ function cacheEls() {
   els.activitySummary = $("activity-summary");
   els.activityGrid = $("activity-grid");
   els.activityMonthLabels = $("activity-month-labels");
+  els.commandSearchBtn = $("command-search-btn");
   // settings / workspace
   els.settingsBtn = $("settings-btn");
   els.settingsModal = $("settings-modal");
@@ -172,6 +180,7 @@ function cacheEls() {
   els.lookupPanel = $("lookup-panel");
   els.lookupPanelBody = $("lookup-panel-body");
   els.lookupClear = $("lookup-clear");
+  els.lookupClose = $("lookup-close");
   els.lookupExpand = $("lookup-expand");
   els.lookupResizer = $("lookup-resizer");
   els.lookupToolbar = $("lookup-toolbar");
@@ -302,6 +311,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 function wireEvents() {
   wireObsidianLinks();
   wireComposer();
+  wireLearningHub();
   wireSidebar();
   wireSidePanels();
   wireRoadmapDropdown();
@@ -405,11 +415,93 @@ function wireComposer() {
   });
 }
 
+function getLatestPausedSession() {
+  return [...readPausedList()].sort(
+    (a, b) => Number(b.pausedAt ?? 0) - Number(a.pausedAt ?? 0),
+  )[0] ?? null;
+}
+
+function renderLearningHub() {
+  if (state.session || !els.messages) return;
+  updateTopbar();
+  const activeRoadmap = state.roadmaps.find(
+    (roadmap) => roadmap.id === state.activeRoadmapId,
+  );
+  const roadmapName = activeRoadmap
+    ? displayRepoName(activeRoadmap.name)
+    : "내 학습 공간";
+  els.messages.innerHTML = buildLearningHubMarkup({
+    roadmapName,
+    chapters: state.chapters,
+    history: state.history,
+    recentChapterId: getRecentChapterId(),
+    pausedSession: getLatestPausedSession(),
+    canOpenSettings: Boolean(window.spiralSettings),
+  });
+  _scrollState.messagesStick = true;
+  els.messages.scrollTop = 0;
+}
+
+function wireLearningHub() {
+  els.messages?.addEventListener("click", async (event) => {
+    const trigger = event.target.closest("[data-hub-action]");
+    if (!trigger || state.session) return;
+    const action = trigger.dataset.hubAction;
+
+    if (action === "start") {
+      const chapterId = trigger.dataset.chapterId;
+      if (!chapterId) return;
+      trigger.disabled = true;
+      const decision = await handleSessionInterruption();
+      if (decision === "cancel") {
+        trigger.disabled = false;
+        return;
+      }
+      await startSession(chapterId);
+      return;
+    }
+
+    if (action === "resume") {
+      const sessionId = trigger.dataset.sessionId;
+      if (!sessionId) return;
+      trigger.disabled = true;
+      await resumePausedSession(sessionId);
+      if (!state.session) trigger.disabled = false;
+      return;
+    }
+
+    if (action === "recent") {
+      const recentNote = getLatestHistoryNote(state.history);
+      if (recentNote) await openPastConversation(recentNote);
+      return;
+    }
+
+    if (action === "activity") {
+      openActivityModal();
+      return;
+    }
+
+    if (action === "settings" && window.spiralSettings) {
+      els.settingsBtn?.click();
+      return;
+    }
+
+    if (action === "path") {
+      revealActiveLearningLocation();
+    }
+  });
+}
+
 function wireSidebar() {
   // 사이드바 토글 (버튼 + Cmd/Ctrl+B 단축키)
   const SIDEBAR_KEY = "spiral-buddy:sidebar-collapsed";
   function setSidebarCollapsed(collapsed, persist = true) {
     document.body.classList.toggle("sidebar-collapsed", collapsed);
+    els.sidebarToggle?.setAttribute("aria-expanded", String(!collapsed));
+    if (els.sidebarScrim) {
+      els.sidebarScrim.tabIndex =
+        !collapsed && window.matchMedia("(max-width: 820px)").matches ? 0 : -1;
+    }
     if (persist) localStorage.setItem(SIDEBAR_KEY, collapsed ? "1" : "0");
     // v0.5.62 — 펼친 직후 chat composer/Look-up이 침범당하지 않도록 cap 재적용.
     // (Look-up이 열려있는 상태에서 사이드바 펼침 시 발생할 수 있는 케이스)
@@ -420,15 +512,31 @@ function wireSidebar() {
     }
   }
   // 초기 상태 복원
-  if (localStorage.getItem(SIDEBAR_KEY) === "1") {
-    setSidebarCollapsed(true, false);
-  }
+  const storedSidebarState = localStorage.getItem(SIDEBAR_KEY);
+  const compactViewport = window.matchMedia("(max-width: 820px)").matches;
+  const syncSidebarScrimTabIndex = () => {
+    if (!els.sidebarScrim) return;
+    const isMobile = window.matchMedia("(max-width: 820px)").matches;
+    const isOpen =
+      !document.body.classList.contains("sidebar-collapsed");
+    els.sidebarScrim.tabIndex = isMobile && isOpen ? 0 : -1;
+  };
+  setSidebarCollapsed(
+    storedSidebarState === "1" ||
+      (storedSidebarState == null && compactViewport),
+    false,
+  );
+  window.addEventListener("resize", syncSidebarScrimTabIndex);
   if (els.sidebarToggle) {
     els.sidebarToggle.addEventListener("click", () => {
       const isCollapsed = document.body.classList.contains("sidebar-collapsed");
       setSidebarCollapsed(!isCollapsed);
     });
   }
+  els.sidebarScrim?.addEventListener("click", () => {
+    setSidebarCollapsed(true);
+    els.sidebarToggle?.focus();
+  });
   // Cmd/Ctrl + B 토글
   document.addEventListener("keydown", (e) => {
     if ((e.metaKey || e.ctrlKey) && (e.key === "b" || e.key === "B")) {
@@ -437,6 +545,13 @@ function wireSidebar() {
       setSidebarCollapsed(!isCollapsed);
     }
     if (e.key === "Escape") {
+      if (
+        window.matchMedia("(max-width: 820px)").matches &&
+        !document.body.classList.contains("sidebar-collapsed")
+      ) {
+        setSidebarCollapsed(true);
+        els.sidebarToggle?.focus();
+      }
       document
         .querySelectorAll(".chapter-actions.actions-open")
         .forEach((actions) => {
@@ -512,6 +627,25 @@ function wireSidebar() {
   const resizer = document.getElementById("sidebar-resizer");
   if (resizer) {
     let dragging = false;
+    const updateSidebarResizerValue = (width) => {
+      resizer.setAttribute("aria-valuenow", String(Math.round(width)));
+    };
+    const setSidebarWidth = (width, persist = false) => {
+      const w = Math.max(
+        SIDEBAR_MIN,
+        Math.min(_sidebarMaxForViewport(), width),
+      );
+      document.body.style.setProperty("--sidebar-w", `${w}px`);
+      updateSidebarResizerValue(w);
+      if (persist) localStorage.setItem(SIDEBAR_WIDTH_KEY, String(w));
+      return w;
+    };
+    const initialWidth =
+      parseInt(
+        getComputedStyle(document.body).getPropertyValue("--sidebar-w"),
+        10,
+      ) || SIDEBAR_DEFAULT;
+    updateSidebarResizerValue(initialWidth);
     resizer.addEventListener("mousedown", (e) => {
       e.preventDefault();
       dragging = true;
@@ -520,11 +654,7 @@ function wireSidebar() {
     document.addEventListener("mousemove", (e) => {
       if (!dragging) return;
       // v0.5.62 — 드래그 시도 cap 적용 (chat 영역 침범 방지)
-      const w = Math.max(
-        SIDEBAR_MIN,
-        Math.min(_sidebarMaxForViewport(), e.clientX),
-      );
-      document.body.style.setProperty("--sidebar-w", `${w}px`);
+      setSidebarWidth(e.clientX);
     });
     document.addEventListener("mouseup", () => {
       if (!dragging) return;
@@ -533,10 +663,29 @@ function wireSidebar() {
       const w = document.body.style.getPropertyValue("--sidebar-w");
       if (w) localStorage.setItem(SIDEBAR_WIDTH_KEY, w.trim());
     });
+    resizer.addEventListener("keydown", (e) => {
+      if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) {
+        return;
+      }
+      e.preventDefault();
+      const current =
+        parseInt(
+          getComputedStyle(document.body).getPropertyValue("--sidebar-w"),
+          10,
+        ) || SIDEBAR_DEFAULT;
+      const next =
+        e.key === "Home"
+          ? SIDEBAR_MIN
+          : e.key === "End"
+            ? _sidebarMaxForViewport()
+            : current + (e.key === "ArrowRight" ? 12 : -12);
+      setSidebarWidth(next, true);
+    });
     // 더블클릭으로 기본 너비 복원
     resizer.addEventListener("dblclick", () => {
       document.body.style.removeProperty("--sidebar-w");
       localStorage.removeItem(SIDEBAR_WIDTH_KEY);
+      updateSidebarResizerValue(SIDEBAR_DEFAULT);
     });
   }
 
@@ -610,6 +759,7 @@ function wireSidePanels() {
   }
 
   // Cmd/Ctrl+K — 검색 모달
+  els.commandSearchBtn?.addEventListener("click", openSearchModal);
   document.addEventListener("keydown", (e) => {
     if ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "K")) {
       e.preventDefault();
@@ -813,6 +963,9 @@ function renderInitialLoadFailure(error) {
     "연결을 확인한 뒤 다시 시도해 주세요",
     retry,
   );
+  if (!state.session && els.messages) {
+    els.messages.innerHTML = WELCOME_EMPTY_HTML;
+  }
   setStatus(`처음 화면을 불러오지 못했어요: ${reason}`, "error");
 }
 
@@ -889,6 +1042,7 @@ async function loadInitial() {
         "error",
       );
       renderRoadmapSelector();
+      renderLearningHub();
       return;
     }
 
@@ -911,9 +1065,11 @@ async function loadInitial() {
       scrollToRecentChapter();
     } else {
       // 설치된 로드맵 없으면 placeholder + curated 가능 목록 자동 로드
-      els.chapterList.innerHTML = `<li class="empty">로드맵 설치 안 됨. 위 셀렉터에서 "받기 가능" 펼쳐 큐레이션 로드맵을 받으세요.</li>`;
+      els.chapterList.innerHTML = `<li class="empty">아직 학습 경로가 없어요. 현재 경로 메뉴나 설정에서 자료를 추가해 주세요.</li>`;
       els.historyList.innerHTML = `<li class="empty">—</li>`;
-      els.suggestion.innerHTML = `<div class="empty">먼저 로드맵을 설치하세요</div>`;
+      els.suggestion.innerHTML = `<div class="empty">학습 자료를 추가하면 다음 챕터를 추천해드려요.</div>`;
+      // 원격 추천 목록은 느리거나 실패할 수 있으므로 홈 화면을 먼저 연다.
+      renderLearningHub();
       // curated available 자동 fetch
       await loadCuratedAvailable();
     }
@@ -980,27 +1136,8 @@ async function loadRoadmapData() {
       if (!isCurrent()) return;
       state.chapters = chaptersRes.chapters ?? [];
       renderChapters();
-
-      // 첫 진입 추천은 이미 받은 챕터 데이터만으로 결정할 수 있다.
-      // 별도 /suggest 요청(상황에 따라 LLM 호출)이 사이드바를 붙잡지 않게 한다.
-      const visitedCount = state.chapters.filter(
-        (chapter) => (chapter.maxDepth ?? 0) > 0,
-      ).length;
-      if (visitedCount > 0 || state.chapters.length === 0) {
-        els.suggestion.replaceChildren();
-        els.suggestion.classList.add("hidden");
-        state.suggestion = null;
-      } else {
-        const firstChapter =
-          state.chapters.find((chapter) => (chapter.maxDepth ?? 0) === 0) ??
-          state.chapters[0];
-        state.suggestion = {
-          recommendedChapterId: firstChapter.id,
-          rationale: "첫 챕터부터 학습 흐름을 열어보세요.",
-          mode: "first-time",
-        };
-        renderSuggestion();
-      }
+      refreshLearningRecommendation();
+      if (!state.session) renderLearningHub();
     } catch (error) {
       if (isAbortedRequest(error, controller.signal) || !isCurrent()) return;
       const reason = readableLoadError(error);
@@ -1016,6 +1153,7 @@ async function loadRoadmapData() {
         "다음 학습을 정하지 못했어요",
         () => loadRoadmapData(),
       );
+      if (!state.session) renderLearningHub();
       setStatus(`학습 순서 로드 실패: ${reason}`, "error");
     }
   })();
@@ -1033,6 +1171,8 @@ async function loadRoadmapData() {
       // chapters/history는 병렬 조회된다. history가 나중에 도착하면 실제 수정
       // 시각으로 계산한 "마지막" 표시를 다시 반영한다.
       if (state.chapters.length > 0) renderChapters();
+      refreshLearningRecommendation();
+      if (!state.session) renderLearningHub();
     } catch (error) {
       if (isAbortedRequest(error, controller.signal) || !isCurrent()) return;
       const reason = readableLoadError(error);
@@ -1043,11 +1183,13 @@ async function loadRoadmapData() {
         () => loadRoadmapData(),
         { listItem: true },
       );
+      if (!state.session) renderLearningHub();
       setStatus(`지난 기록 로드 실패: ${reason}`, "error");
     }
   })();
 
   await Promise.allSettled([chaptersTask, historyTask]);
+  if (isCurrent() && !state.session) renderLearningHub();
   if (_roadmapLoadController === controller) {
     _roadmapLoadController = null;
   }
@@ -1122,16 +1264,21 @@ function renderSubRoadmapItem(r, idx) {
     r.chapterCount > 0
       ? Math.min(100, Math.round((r.visitedChapters / r.chapterCount) * 100))
       : 0;
+  const progressLabel = `${r.visitedChapters}/${r.chapterCount}`;
+  const lastDateLabel =
+    lastDate === "—" ? "최근 학습 기록 없음" : `마지막 학습 ${lastDate}`;
+  const accessibleLabel = `${displayName}, ${progressLabel} 챕터, ${lastDateLabel}`;
   return `
-                  <button class="roadmap-item sub-roadmap-item ${isActive ? "active" : ""}" data-id="${escapeAttr(r.id)}" data-roadmap-title="${escapeAttr(displayName)}" data-depths="${escapeAttr((r.depths ?? []).join(","))}">
-                    <div class="roadmap-item-name"><span class="sub-roadmap-index">${idx + 1}.</span> ${escapeHtml(displayName)}</div>
-                    <div class="progress-mini" aria-hidden="true"><div class="progress-fill" style="width:${pct}%"></div></div>
-                    <div class="roadmap-item-meta">
-                      ${depthBadge}
-                      <span class="roadmap-item-progress">${r.visitedChapters}/${r.chapterCount}</span>
-                      <span class="roadmap-item-date">${escapeHtml(lastDate)}</span>
-                      ${trashBtn}
+                  <button class="roadmap-item sub-roadmap-item ${isActive ? "active" : ""}" data-id="${escapeAttr(r.id)}" data-roadmap-title="${escapeAttr(displayName)}" data-depths="${escapeAttr((r.depths ?? []).join(","))}" title="${escapeAttr(lastDateLabel)}" aria-label="${escapeAttr(accessibleLabel)}">
+                    <div class="roadmap-item-heading">
+                      <div class="roadmap-item-name"><span class="sub-roadmap-index">${idx + 1}.</span> ${escapeHtml(displayName)}</div>
+                      <div class="roadmap-item-brief">
+                        ${depthBadge}
+                        <span class="roadmap-item-progress">${progressLabel}</span>
+                        ${trashBtn}
+                      </div>
                     </div>
+                    <div class="progress-mini" aria-hidden="true"><div class="progress-fill" style="width:${pct}%"></div></div>
                   </button>
                 `;
 }
@@ -1713,15 +1860,23 @@ function roadmapItemHtml(r) {
   const lastDate = r.lastDate ?? "—";
   const depthBadge =
     r.maxDepth > 0 ? `<span class="depth-pill">d${r.maxDepth}</span>` : "";
+  const pct =
+    r.chapterCount > 0
+      ? Math.min(100, Math.round((r.visitedChapters / r.chapterCount) * 100))
+      : 0;
+  const progressLabel = `${r.visitedChapters}/${r.chapterCount}`;
+  const lastDateLabel =
+    lastDate === "—" ? "최근 학습 기록 없음" : `마지막 학습 ${lastDate}`;
   return `
-    <button class="roadmap-item ${isActive ? "active" : ""}" data-id="${escapeAttr(r.id)}">
-      <div class="roadmap-item-name">${escapeHtml(r.name)}</div>
-      <div class="roadmap-item-meta">
-        ${depthBadge}
-        <span class="roadmap-item-progress">${r.visitedChapters}/${r.chapterCount}</span>
-        <span class="roadmap-item-date">${escapeHtml(lastDate)}</span>
+    <button class="roadmap-item ${isActive ? "active" : ""}" data-id="${escapeAttr(r.id)}" title="${escapeAttr(lastDateLabel)}" aria-label="${escapeAttr(`${r.name}, ${progressLabel} 챕터, ${lastDateLabel}`)}">
+      <div class="roadmap-item-heading">
+        <div class="roadmap-item-name">${escapeHtml(r.name)}</div>
+        <div class="roadmap-item-brief">
+          ${depthBadge}
+          <span class="roadmap-item-progress">${progressLabel}</span>
+        </div>
       </div>
-      <div class="roadmap-item-id">${escapeHtml(r.id)}</div>
+      <div class="progress-mini" aria-hidden="true"><div class="progress-fill" style="width:${pct}%"></div></div>
     </button>
   `;
 }
@@ -1889,6 +2044,8 @@ async function _handleSessionInterruptionBody() {
     if (action === "save" && state.activeRoadmapId) {
       await loadRoadmapData();
       refreshActivityBadge();
+    } else {
+      renderLearningHub();
     }
   }
   return "continue";
@@ -2269,6 +2426,9 @@ function renderChapters() {
   els.chapterList.innerHTML = "";
   if (state.chapters.length === 0) {
     els.chapterList.innerHTML = `<li class="empty">챕터 없음</li>`;
+    if (els.chapterProgressSummary) {
+      els.chapterProgressSummary.textContent = "0 / 0";
+    }
     return;
   }
   // 실제 노트 수정 시각 기준. 같은 날 여러 챕터를 학습해도 정확히 표시한다.
@@ -2280,6 +2440,10 @@ function renderChapters() {
   const completedChapterCount = state.chapters.filter(
     (chapter) => (chapter.maxDepth ?? 0) > 0,
   ).length;
+  if (els.chapterProgressSummary) {
+    els.chapterProgressSummary.textContent =
+      `${completedChapterCount} / ${totalChapterCount}`;
+  }
   const roadmapComplete =
     totalChapterCount > 0 && completedChapterCount === totalChapterCount;
   // 검색어가 있으면 필터링 (v0.5.51)
@@ -2758,17 +2922,41 @@ async function initSettings() {
   });
 
   // 설정 모달 탭 스위칭
-  els.settingsModal?.querySelectorAll(".settings-tab").forEach((tab) => {
-    tab.addEventListener("click", () => {
-      els.settingsModal
-        .querySelectorAll(".settings-tab")
-        .forEach((t) => t.classList.toggle("active", t === tab));
-      const target = tab.dataset.tab;
-      els.settingsModal
-        .querySelectorAll(".settings-panel")
-        .forEach((p) =>
-          p.classList.toggle("hidden", p.dataset.panel !== target),
-        );
+  const settingsTabs = Array.from(
+    els.settingsModal?.querySelectorAll(".settings-tab") ?? [],
+  );
+  const activateSettingsTab = (tab, { focus = false } = {}) => {
+    settingsTabs.forEach((item) => {
+      const active = item === tab;
+      item.classList.toggle("active", active);
+      item.setAttribute("aria-selected", String(active));
+      item.tabIndex = active ? 0 : -1;
+    });
+    const target = tab.dataset.tab;
+    els.settingsModal
+      .querySelectorAll(".settings-panel")
+      .forEach((panel) =>
+        panel.classList.toggle("hidden", panel.dataset.panel !== target),
+      );
+    if (focus) tab.focus();
+  };
+  settingsTabs.forEach((tab, index) => {
+    tab.addEventListener("click", () => activateSettingsTab(tab));
+    tab.addEventListener("keydown", (event) => {
+      if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
+        return;
+      }
+      event.preventDefault();
+      const nextIndex =
+        event.key === "Home"
+          ? 0
+          : event.key === "End"
+            ? settingsTabs.length - 1
+            : (index +
+                (event.key === "ArrowRight" ? 1 : -1) +
+                settingsTabs.length) %
+              settingsTabs.length;
+      activateSettingsTab(settingsTabs[nextIndex], { focus: true });
     });
   });
 
@@ -3853,6 +4041,7 @@ async function runCuratedInstall(repoNames, label) {
 const _lookupState = {
   open: false,
   cardCount: 0,
+  sidebarAutoCollapsed: false,
 };
 
 function initLookup() {
@@ -3948,6 +4137,7 @@ function initLookup() {
     if (els.lookupPanelBody) els.lookupPanelBody.innerHTML = "";
     _lookupState.cardCount = 0;
   });
+  els.lookupClose?.addEventListener("click", closeLookupPanel);
   els.lookupExpand?.addEventListener("click", () => {
     // v0.5.79 — 전체화면 버튼 무력화 fix.
     // v0.5.68부터 openLookupPanel이 inline --lookup-w를 항상 설정하는데,
@@ -4015,6 +4205,18 @@ function initLookup() {
   }
   if (els.lookupResizer) {
     let dragging = false;
+    const updateLookupResizerValue = (width) => {
+      els.lookupResizer.setAttribute(
+        "aria-valuenow",
+        String(Math.round(width)),
+      );
+    };
+    updateLookupResizerValue(
+      parseInt(
+        document.body.style.getPropertyValue("--lookup-w-saved"),
+        10,
+      ) || LOOKUP_DEFAULT,
+    );
     els.lookupResizer.addEventListener("mousedown", (e) => {
       e.preventDefault();
       dragging = true;
@@ -4029,6 +4231,7 @@ function initLookup() {
       );
       document.body.style.setProperty("--lookup-w", `${w}px`);
       document.body.style.setProperty("--lookup-w-saved", `${w}px`);
+      updateLookupResizerValue(w);
     });
     document.addEventListener("mouseup", () => {
       if (!dragging) return;
@@ -4037,11 +4240,37 @@ function initLookup() {
       const w = document.body.style.getPropertyValue("--lookup-w-saved");
       if (w) localStorage.setItem(LOOKUP_WIDTH_KEY, w.trim());
     });
+    els.lookupResizer.addEventListener("keydown", (e) => {
+      if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) {
+        return;
+      }
+      e.preventDefault();
+      const current =
+        parseInt(
+          getComputedStyle(document.body).getPropertyValue("--lookup-w"),
+          10,
+        ) || LOOKUP_DEFAULT;
+      const next =
+        e.key === "Home"
+          ? LOOKUP_MIN
+          : e.key === "End"
+            ? _lookupMaxForViewport()
+            : current + (e.key === "ArrowLeft" ? 12 : -12);
+      const w = Math.max(
+        LOOKUP_MIN,
+        Math.min(_lookupMaxForViewport(), next),
+      );
+      document.body.style.setProperty("--lookup-w", `${w}px`);
+      document.body.style.setProperty("--lookup-w-saved", `${w}px`);
+      localStorage.setItem(LOOKUP_WIDTH_KEY, String(w));
+      updateLookupResizerValue(w);
+    });
     // 더블클릭 → 기본값
     els.lookupResizer.addEventListener("dblclick", () => {
       document.body.style.setProperty("--lookup-w", `${LOOKUP_DEFAULT}px`);
       document.body.style.setProperty("--lookup-w-saved", `${LOOKUP_DEFAULT}px`);
       localStorage.setItem(LOOKUP_WIDTH_KEY, String(LOOKUP_DEFAULT));
+      updateLookupResizerValue(LOOKUP_DEFAULT);
     });
   }
 
@@ -4176,13 +4405,16 @@ function _lookupMaxForViewportShared() {
 }
 
 function openLookupPanel() {
-  // v0.5.67 — sidebar-collapsed 상태로 먼저 전환한 후 cap 계산
-  // (자동 사이드바 접힘 이후 viewport headroom이 달라지므로 순서 중요)
-  if (!document.body.classList.contains("sidebar-collapsed")) {
-    document.body.classList.add("sidebar-collapsed");
-    try {
-      localStorage.setItem("spiral-buddy:sidebar-collapsed", "1");
-    } catch {}
+  // 넓은 화면에서는 학습 경로와 사이드 노트를 함께 유지한다.
+  // 두 패널을 유지하면 채팅 최소 폭이 깨지는 경우에만 사이드바를 임시로 접는다.
+  _lookupState.sidebarAutoCollapsed = false;
+  const hasOpenSidebar =
+    !document.body.classList.contains("sidebar-collapsed");
+  const headroomWithSidebar =
+    window.innerWidth - _currentSidebarPxForCap() - CHAT_MIN_CAP;
+  if (hasOpenSidebar && headroomWithSidebar < LOOKUP_MIN_CAP) {
+    els.sidebarToggle?.click();
+    _lookupState.sidebarAutoCollapsed = true;
   }
 
   // v0.5.68 — 항상 inline --lookup-w 적용. 옛 버전엔 saved 없을 때
@@ -4203,7 +4435,7 @@ function openLookupPanel() {
   els.lookupResizer?.classList.remove("hidden");
   els.lookupPanel?.setAttribute("aria-hidden", "false");
   document.getElementById("lookup-toggle")?.setAttribute("aria-expanded", "true");
-  document.getElementById("lookup-toggle")?.setAttribute("aria-label", "보조 패널 닫기");
+  document.getElementById("lookup-toggle")?.setAttribute("aria-label", "사이드 노트 닫기");
   _lookupState.open = true;
 }
 
@@ -4216,12 +4448,20 @@ function closeLookupPanel() {
   els.lookupResizer?.classList.add("hidden");
   els.lookupPanel?.setAttribute("aria-hidden", "true");
   document.getElementById("lookup-toggle")?.setAttribute("aria-expanded", "false");
-  document.getElementById("lookup-toggle")?.setAttribute("aria-label", "보조 패널 열기");
+  document.getElementById("lookup-toggle")?.setAttribute("aria-label", "사이드 노트 열기");
   _lookupState.open = false;
   // v0.5.50 — inline --lookup-w를 제거해야 grid track이 0으로 돌아감.
   // 안 지우면 panel은 hidden인데 grid column은 400px(또는 saved)로 남아
   // 채팅 우측에 빈 검은 영역이 발생함. saved 값은 별도(--lookup-w-saved)에 보존 → 재오픈 시 복원.
   document.body.style.removeProperty("--lookup-w");
+  if (
+    _lookupState.sidebarAutoCollapsed &&
+    document.body.classList.contains("sidebar-collapsed") &&
+    !window.matchMedia("(max-width: 820px)").matches
+  ) {
+    els.sidebarToggle?.click();
+  }
+  _lookupState.sidebarAutoCollapsed = false;
 }
 
 // ──────────────────────────────────────────────────────────
@@ -4325,11 +4565,17 @@ function initLookupDirectForm() {
 // composer/lookup 입력창 리사이저 공통.
 function makeResizer(handleEl, targetEl, { key, min, max }) {
   if (!handleEl || !targetEl) return;
+  const updateAriaValue = (height) => {
+    handleEl.setAttribute("aria-valuenow", String(Math.round(height)));
+  };
   const saved = parseInt(localStorage.getItem(key) ?? "0", 10);
   if (saved >= min && saved <= max) {
     targetEl.style.minHeight = `${saved}px`;
     targetEl.style.maxHeight = `${saved}px`;
   }
+  requestAnimationFrame(() => {
+    updateAriaValue(Math.max(min, Math.min(max, targetEl.offsetHeight)));
+  });
   let dragging = false;
   let startY = 0;
   let startH = 0;
@@ -4346,6 +4592,7 @@ function makeResizer(handleEl, targetEl, { key, min, max }) {
     const next = Math.max(min, Math.min(max, startH + dy));
     targetEl.style.minHeight = `${next}px`;
     targetEl.style.maxHeight = `${next}px`;
+    updateAriaValue(next);
   });
   document.addEventListener("mouseup", () => {
     if (!dragging) return;
@@ -4353,10 +4600,29 @@ function makeResizer(handleEl, targetEl, { key, min, max }) {
     document.body.classList.remove("composer-resizing");
     localStorage.setItem(key, String(targetEl.offsetHeight));
   });
+  handleEl.addEventListener("keydown", (e) => {
+    if (!["ArrowUp", "ArrowDown", "Home", "End"].includes(e.key)) return;
+    e.preventDefault();
+    const current = targetEl.offsetHeight;
+    const next =
+      e.key === "Home"
+        ? min
+        : e.key === "End"
+          ? max
+          : Math.max(
+              min,
+              Math.min(max, current + (e.key === "ArrowUp" ? 12 : -12)),
+            );
+    targetEl.style.minHeight = `${next}px`;
+    targetEl.style.maxHeight = `${next}px`;
+    localStorage.setItem(key, String(next));
+    updateAriaValue(next);
+  });
   handleEl.addEventListener("dblclick", () => {
     targetEl.style.minHeight = "";
     targetEl.style.maxHeight = "";
     localStorage.removeItem(key);
+    requestAnimationFrame(() => updateAriaValue(targetEl.offsetHeight));
   });
 }
 
@@ -5501,6 +5767,27 @@ function showPastConversationModal(note, data) {
   });
 }
 
+function refreshLearningRecommendation() {
+  const focus = selectLearningFocus(
+    state.chapters,
+    getRecentChapterId(),
+  );
+  if (!focus) {
+    state.suggestion = null;
+    els.suggestion.replaceChildren();
+    els.suggestion.classList.add("hidden");
+    return;
+  }
+  state.suggestion = {
+    recommendedChapterId: focus.chapter.id,
+    rationale: focus.rationale,
+    mode: focus.mode,
+    targetDepth: focus.targetDepth,
+  };
+  els.suggestion.classList.remove("hidden");
+  renderSuggestion();
+}
+
 function renderSuggestion() {
   const s = state.suggestion;
   if (!s) {
@@ -5508,8 +5795,21 @@ function renderSuggestion() {
     return;
   }
   const chapter = state.chapters.find((c) => c.id === s.recommendedChapterId);
+  const modeLabel =
+    s.mode === "first"
+      ? "첫 번째 나선"
+      : s.mode === "continue"
+        ? "다음 학습"
+        : s.mode === "deepen"
+          ? "한 번 더 깊이"
+          : "다시 연결";
+  const buttonLabel =
+    s.mode === "deepen"
+      ? `d${s.targetDepth ?? 2}로 이어가기`
+      : "학습 시작";
+  const chapterIndex = chapter ? state.chapters.indexOf(chapter) : -1;
   els.suggestion.innerHTML = `
-    <div class="suggestion-mode"><span>다음 나선</span></div>
+    <div class="suggestion-mode"><span>${escapeHtml(modeLabel)}</span>${s.targetDepth ? `<small>d${s.targetDepth}</small>` : ""}</div>
     ${
       chapter
         ? `<div class="suggestion-title">${escapeHtml(chapter.title)}</div>`
@@ -5517,8 +5817,13 @@ function renderSuggestion() {
     }
     <div class="suggestion-rationale">${escapeHtml(s.rationale)}</div>
     ${
+      chapterIndex >= 0
+        ? `<div class="suggestion-position">${chapterIndex + 1} / ${state.chapters.length} 챕터</div>`
+        : ""
+    }
+    ${
       chapter
-        ? `<button class="start-suggested primary">이 챕터 시작</button>`
+        ? `<button class="start-suggested primary">${escapeHtml(buttonLabel)} <span aria-hidden="true">→</span></button>`
         : ""
     }
   `;
@@ -5555,20 +5860,6 @@ async function startSession(chapterId) {
   abortStreams("session");
   const handle = createStreamHandle("session");
   try {
-    els.messages.innerHTML = "";
-    state.messages = [];
-
-    // 이전 세션의 lookup 카드 자동 비우기 — 챕터별로 깨끗하게 시작
-    // v0.5.73 — 카드를 비우기 전에 진행 중 lookup 스트림부터 중단
-    abortStreams("lookup");
-    if (els.lookupPanelBody) {
-      els.lookupPanelBody.innerHTML = "";
-      _lookupState.cardCount = 0;
-    }
-
-    // 퀴즈 단계 리셋 (v0.5.31 #8)
-    resetQuiz();
-
     const chapter = state.chapters.find((c) => c.id === chapterId);
     setStatus("학습을 여는 중…");
     setPending(true);
@@ -5604,6 +5895,18 @@ async function startSession(chapterId) {
       roadmapId: decodeURIComponent(roadmapIdEnc),
       roadmapName: decodeURIComponent(roadmapNameEnc),
     };
+
+    // 서버가 세션 시작을 수락한 뒤에만 홈과 보조 노트를 비운다.
+    // 네트워크 실패 시 사용자가 같은 CTA로 즉시 재시도할 수 있어야 한다.
+    els.messages.innerHTML = "";
+    state.messages = [];
+    abortStreams("lookup");
+    if (els.lookupPanelBody) {
+      els.lookupPanelBody.innerHTML = "";
+      _lookupState.cardCount = 0;
+    }
+    resetQuiz();
+
     _sessionEpoch++; // 새 세션 성립 → 진행 중인 옛 end-op의 늦은 정리를 무효화
     refreshPausedList(); // 일시정지 목록 갱신
     updateTopbar();
@@ -5633,6 +5936,7 @@ async function startSession(chapterId) {
     } else {
       enableSessionUi(false);
       state.session = null;
+      renderLearningHub();
       setStatus(`세션 시작 실패: ${err.message} — 챕터를 다시 클릭해주세요`, "error");
     }
   } finally {
@@ -6007,6 +6311,7 @@ async function pauseSession() {
     if (els.statusBar?.textContent?.startsWith(`"${meta.chapterTitle}"`)) setStatus("");
   }, 3500);
   refreshPausedList();
+  renderLearningHub();
 }
 
 async function resumePausedSession(id) {
@@ -6104,6 +6409,7 @@ async function discardPausedSession(id) {
   } catch {}
   writePausedList(list.filter((p) => p.id !== id));
   refreshPausedList();
+  if (!state.session) renderLearningHub();
   setStatus("일시정지 세션 폐기됨");
   setTimeout(() => setStatus(""), 1500);
 }
@@ -6488,11 +6794,35 @@ function updateTopbar() {
       </button>
     `;
   } else {
-    els.topbar.textContent = "";
+    const activeRoadmap = state.roadmaps.find(
+      (roadmap) => roadmap.id === state.activeRoadmapId,
+    );
+    if (activeRoadmap) {
+      const completed = Number(activeRoadmap.visitedChapters ?? 0);
+      const total = Number(activeRoadmap.chapterCount ?? state.chapters.length);
+      els.topbar.innerHTML = `
+        <button class="current-chapter-jump topbar-home-jump" type="button" title="현재 학습 경로 보기" aria-label="${escapeAttr(displayRepoName(activeRoadmap.name))} — 학습 경로 보기" aria-controls="roadmap-list" aria-expanded="${String(!els.roadmapList.classList.contains("hidden"))}">
+          <span class="topbar-home-label">오늘의 학습</span>
+          <strong class="topbar-chapter-title">${escapeHtml(displayRepoName(activeRoadmap.name))}</strong>
+          <span class="topbar-home-progress">${completed}/${total}</span>
+          <svg class="current-chapter-jump-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
+        </button>
+      `;
+    } else {
+      els.topbar.innerHTML = `
+        <div class="topbar-home-copy">
+          <span>오늘의 학습</span>
+          <strong>학습 경로를 준비해 주세요</strong>
+        </div>
+      `;
+    }
   }
 }
 
 function enableSessionUi(enabled) {
+  document.body.classList.toggle("session-active", enabled);
   els.input.disabled = !enabled;
   els.sendBtn.disabled = !enabled;
   els.endBtn.disabled = !enabled;

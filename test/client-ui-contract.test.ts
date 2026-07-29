@@ -2,10 +2,13 @@ import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
-const [html, app, brandCss, electronMain] = await Promise.all([
+const [html, app, brandCss, helixCss, learningHub, electronMain] =
+  await Promise.all([
   readFile(new URL("../client/index.html", import.meta.url), "utf8"),
   readFile(new URL("../client/app.js", import.meta.url), "utf8"),
   readFile(new URL("../client/blue-brand.css", import.meta.url), "utf8"),
+  readFile(new URL("../client/helix.css", import.meta.url), "utf8"),
+  readFile(new URL("../client/learning-hub.js", import.meta.url), "utf8"),
   readFile(new URL("../electron/main.cjs", import.meta.url), "utf8"),
 ]);
 
@@ -51,27 +54,72 @@ describe("client UI contracts", () => {
     );
   });
 
-  test("the welcome screen carries one large static spiral principle", () => {
+  test("the learning home pairs an abstract helix field with a clear next action", () => {
     assert.doesNotMatch(html, /SPIRAL · BLUE/);
     assert.doesNotMatch(app, /SPIRAL · BLUE/);
-    assert.match(html, /반복은 제자리가 아니라,[\s\S]*더 깊어지는 나선이다\./);
-    assert.match(app, /반복은 제자리가 아니라,[\s\S]*더 깊어지는 나선이다\./);
-    assert.doesNotMatch(html, /배움은 돌아올수록 깊어진다\./);
-    assert.doesNotMatch(html, /오늘의 깊이를 선택하세요/);
-    assert.doesNotMatch(app, /오늘의 깊이를 선택하세요/);
+    assert.doesNotMatch(html, /반복은 제자리가 아니라/);
+    assert.doesNotMatch(app, /반복은 제자리가 아니라/);
+    assert.doesNotMatch(learningHub, /반복은 제자리가 아니라/);
+    assert.match(html, /id="blue-welcome-geometry"/);
+    assert.match(html, /<use href="#blue-welcome-geometry"><\/use>/);
+    assert.match(app, /<use href="#blue-welcome-geometry"><\/use>/);
+    assert.match(learningHub, /class="hub-focus"/);
+    assert.match(learningHub, /data-hub-action="\$\{primaryAction\}"/);
+    assert.match(learningHub, /class="hub-progress"/);
+    assert.doesNotMatch(learningHub, /class="hub-flow"/);
+    assert.match(app, /function renderLearningHub\(\)/);
+    assert.match(helixCss, /\.hub-hero--geometry/);
+    assert.match(helixCss, /\.learning-hub[\s\S]*?\.welcome-geometry/);
     assert.doesNotMatch(html, /welcome-steps/);
-    assert.match(
-      brandCss,
-      /\.spiral-welcome \.welcome-mark svg,[\s\S]*?animation: none !important;/,
+  });
+
+  test("the learning home appears before slow secondary requests and survives start failures", () => {
+    const noRoadmapBranch = app.slice(
+      app.indexOf("// 설치된 로드맵 없으면 placeholder"),
+      app.indexOf("} catch (err)", app.indexOf("// 설치된 로드맵 없으면 placeholder")),
+    );
+    assert.ok(
+      noRoadmapBranch.indexOf("renderLearningHub();") <
+        noRoadmapBranch.indexOf("await loadCuratedAvailable();"),
+    );
+    const roadmapLoader = app.slice(
+      app.indexOf("async function loadRoadmapData()"),
+      app.indexOf("// ─────────────────────────────────────────", app.indexOf("async function loadRoadmapData()")),
     );
     assert.match(
-      brandCss,
-      /\.spiral-welcome \.welcome-mark \{[\s\S]*?width: clamp\(620px,[\s\S]*?border: 0 !important;/,
+      roadmapLoader,
+      /state\.chapters = chaptersRes\.chapters \?\? \[\];[\s\S]*?renderLearningHub\(\);/,
+    );
+    const sessionStart = app.slice(
+      app.indexOf("async function startSession(chapterId)"),
+      app.indexOf("async function submitMessage()", app.indexOf("async function startSession(chapterId)")),
     );
     assert.match(
-      brandCss,
-      /\.welcome-principle \{[\s\S]*?font-size: clamp\(36px, 5\.1vw, 64px\)/,
+      sessionStart,
+      /if \(!res\.ok\)[\s\S]*?state\.session = \{[\s\S]*?els\.messages\.innerHTML = "";/,
     );
+    assert.match(
+      sessionStart,
+      /state\.session = null;[\s\S]*?renderLearningHub\(\);/,
+    );
+  });
+
+  test("roadmap rows keep compact progress beside the title and dates in disclosure", () => {
+    assert.match(app, /class="roadmap-item-heading"/);
+    assert.match(app, /class="roadmap-item-brief"/);
+    assert.match(app, /title="\$\{escapeAttr\(lastDateLabel\)\}"/);
+    assert.doesNotMatch(
+      app.slice(
+        app.indexOf("function renderSubRoadmapItem"),
+        app.indexOf("// 사이드바 expand 상태"),
+      ),
+      /class="roadmap-item-date"/,
+    );
+    assert.match(
+      helixCss,
+      /\.progress-mini \{[\s\S]*?height: 6px !important;/,
+    );
+    assert.match(helixCss, /\.suggestion-mode::after[\s\S]*?display: none !important;/);
   });
 
   test("session actions use short labels that describe their real behavior", () => {
@@ -169,8 +217,28 @@ describe("client UI contracts", () => {
       brandCss,
       /\.composer \{[\s\S]*?border-top-left-radius: 16px !important;/,
     );
-    assert.match(html, /blue-brand\.css\?v=0\.6\.8/);
-    assert.match(html, /app\.js\?v=0\.6\.8/);
+    assert.match(html, /blue-brand\.css\?v=0\.6\.9/);
+    assert.match(html, /helix\.css\?v=0\.6\.9/);
+    assert.match(html, /app\.js\?v=0\.6\.9/);
+  });
+
+  test("the 820px mobile shell keeps the main column visible and hides inert resizers", () => {
+    const mobileHelix = helixCss.slice(
+      helixCss.indexOf("@media (max-width: 820px)"),
+      helixCss.indexOf("@media (max-width: 560px)"),
+    );
+    assert.match(
+      mobileHelix,
+      /body\.sidebar-collapsed,[\s\S]*?grid-template-columns: minmax\(0, 1fr\) 0 !important;/,
+    );
+    assert.match(
+      mobileHelix,
+      /#sidebar-resizer,[\s\S]*?#lookup-resizer \{[\s\S]*?display: none !important;/,
+    );
+    assert.match(
+      mobileHelix,
+      /body\.lookup-open \.lookup-panel,[\s\S]*?position: fixed;/,
+    );
   });
 
   test("chapter progress separates current, completed, upcoming and recent", () => {

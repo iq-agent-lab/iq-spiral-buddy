@@ -363,9 +363,7 @@ body:is(.light-mode, .dark-mode) #sidebar > .brand .logo-spiral svg {
   filter: none !important;
 }
 
-body.motion-on .logo-spiral .spiral-rotate,
 body.motion-on .logo-spiral .spiral-center-pulse,
-.logo-spiral .spiral-rotate,
 .logo-spiral .spiral-center-pulse {
   animation: none !important;
   transform: none !important;
