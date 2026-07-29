@@ -532,8 +532,8 @@ async function createMainWindow() {
     minWidth: 800,
     minHeight: 600,
     title: "Spiral Buddy Blue",
-    // 렌더러의 기본 dark theme가 뜨기 전 흰색 flash가 보이지 않게 맞춘다.
-    backgroundColor: "#0d1623",
+    // 렌더러의 기본 light theme와 맞춰 첫 페인트의 색상 점프를 막는다.
+    backgroundColor: "#f5f7fb",
     icon: path.join(__dirname, "build", "icon.png"),
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),

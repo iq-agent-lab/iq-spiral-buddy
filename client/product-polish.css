@@ -1,0 +1,468 @@
+/*
+ * Spiral Buddy — final product polish
+ * Loaded after the shared theme layers. Keep this file token-driven so every
+ * Buddy can inherit the same interaction language with its own palette.
+ */
+
+/* -------------------------------------------------------------------------- */
+/* Light workspace and composer                                                */
+/* -------------------------------------------------------------------------- */
+
+body.light-mode .messages-wrap,
+body.light-mode .messages {
+  background: var(--blue-surface, var(--blue-paper-muted)) !important;
+}
+
+body.light-mode .message.assistant .content {
+  background: color-mix(
+    in srgb,
+    var(--blue-cobalt) 2%,
+    var(--blue-paper)
+  ) !important;
+  border-color: var(--blue-line) !important;
+  box-shadow: var(--blue-shadow-sm) !important;
+}
+
+body.light-mode .message.assistant:hover .content {
+  border-color: color-mix(
+    in srgb,
+    var(--blue-cobalt) 24%,
+    var(--blue-line)
+  ) !important;
+  box-shadow: var(--blue-shadow-md) !important;
+}
+
+body.light-mode .composer {
+  background: var(--blue-paper) !important;
+  border-top-color: var(--blue-line) !important;
+}
+
+body.light-mode .composer #input,
+body.light-mode .composer #input:hover:not(:disabled) {
+  background: color-mix(
+    in srgb,
+    var(--blue-cobalt) 2%,
+    var(--blue-paper-muted)
+  ) !important;
+  border: 1px solid var(--blue-line) !important;
+  box-shadow: var(--blue-shadow-sm) !important;
+}
+
+body.light-mode .composer #input:hover:not(:disabled) {
+  border-color: var(--blue-line-strong) !important;
+}
+
+body.light-mode .composer #input:focus {
+  background: var(--blue-paper) !important;
+  border-color: var(--blue-cobalt) !important;
+  box-shadow: var(--blue-focus) !important;
+  outline: none !important;
+}
+
+body.light-mode .composer #input:disabled {
+  background: color-mix(
+    in srgb,
+    var(--blue-cobalt) 2%,
+    var(--blue-paper-muted)
+  ) !important;
+  border: 1px solid var(--blue-line) !important;
+  box-shadow: var(--blue-shadow-sm) !important;
+  opacity: 0.78;
+}
+
+body.light-mode .composer-btn-col {
+  padding: 4px;
+  background: color-mix(
+    in srgb,
+    var(--blue-cobalt) 2%,
+    var(--blue-paper-muted)
+  );
+  border: 1px solid var(--blue-line);
+  border-radius: 11px;
+  box-shadow: var(--blue-shadow-sm);
+}
+
+body.light-mode #topbar,
+body.light-mode #topbar :is(strong, .topbar-home-copy) {
+  color: var(--blue-ink) !important;
+}
+
+/* Voice, refine and send remain distinguishable without introducing new hues. */
+
+body:is(.light-mode, .dark-mode) .composer-btn-col .mic-btn {
+  --product-action-tone: var(--blue-success);
+}
+
+body:is(.light-mode, .dark-mode) .composer-btn-col .refine-btn {
+  --product-action-tone: var(--blue-warning);
+}
+
+body:is(.light-mode, .dark-mode)
+  .composer-btn-col
+  :is(.mic-btn, .refine-btn) {
+  background: color-mix(
+    in srgb,
+    var(--product-action-tone) 9%,
+    var(--blue-paper)
+  ) !important;
+  border-color: color-mix(
+    in srgb,
+    var(--product-action-tone) 40%,
+    var(--blue-line)
+  ) !important;
+  color: var(--product-action-tone) !important;
+  opacity: 1 !important;
+}
+
+body:is(.light-mode, .dark-mode)
+  .composer-btn-col
+  :is(.mic-btn, .refine-btn):hover:not(:disabled) {
+  background: color-mix(
+    in srgb,
+    var(--product-action-tone) 16%,
+    var(--blue-paper)
+  ) !important;
+  border-color: var(--product-action-tone) !important;
+}
+
+body:is(.light-mode, .dark-mode)
+  .composer-btn-col
+  :is(.mic-btn, .refine-btn):focus-visible {
+  outline: 2px solid
+    color-mix(in srgb, var(--product-action-tone) 70%, transparent);
+  outline-offset: 2px;
+}
+
+body:is(.light-mode, .dark-mode)
+  .composer-btn-col
+  :is(.mic-btn, .refine-btn):disabled:not(.is-loading) {
+  background: color-mix(
+    in srgb,
+    var(--product-action-tone) 5%,
+    var(--blue-paper-muted)
+  ) !important;
+  border-color: color-mix(
+    in srgb,
+    var(--product-action-tone) 24%,
+    var(--blue-line)
+  ) !important;
+  color: color-mix(
+    in srgb,
+    var(--product-action-tone) 58%,
+    var(--blue-ink-faint)
+  ) !important;
+  opacity: 1 !important;
+}
+
+body:is(.light-mode, .dark-mode)
+  .composer-btn-col
+  :is(.mic-btn.active, .refine-btn.is-loading) {
+  background: color-mix(
+    in srgb,
+    var(--product-action-tone) 20%,
+    var(--blue-paper)
+  ) !important;
+  border-color: var(--product-action-tone) !important;
+  color: var(--product-action-tone) !important;
+}
+
+body:is(.light-mode, .dark-mode) .composer-btn-col .send-btn {
+  background: var(--blue-action) !important;
+  border: 1px solid var(--blue-action) !important;
+  color: #ffffff !important;
+}
+
+body:is(.light-mode, .dark-mode)
+  .composer-btn-col
+  .send-btn:hover:not(:disabled) {
+  background: var(--blue-action-hover) !important;
+  border-color: var(--blue-action-hover) !important;
+}
+
+body:is(.light-mode, .dark-mode)
+  .composer-btn-col
+  .send-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--blue-focus) !important;
+}
+
+body:is(.light-mode, .dark-mode)
+  .composer-btn-col
+  .send-btn:disabled:not([aria-busy="true"]) {
+  background: color-mix(
+    in srgb,
+    var(--blue-cobalt) 8%,
+    var(--blue-paper-muted)
+  ) !important;
+  border-color: color-mix(
+    in srgb,
+    var(--blue-cobalt) 28%,
+    var(--blue-line)
+  ) !important;
+  color: color-mix(
+    in srgb,
+    var(--blue-cobalt) 58%,
+    var(--blue-ink-faint)
+  ) !important;
+}
+
+body:is(.light-mode, .dark-mode)
+  .composer-btn-col
+  .send-btn[aria-busy="true"] {
+  background: var(--blue-cobalt-soft) !important;
+  border-color: var(--blue-cobalt) !important;
+  color: var(--blue-cobalt-strong) !important;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Search                                                                      */
+/* -------------------------------------------------------------------------- */
+
+body:is(.light-mode, .dark-mode) .sidebar-search-input {
+  transition:
+    padding-left 160ms ease,
+    border-color 160ms ease,
+    background-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.sidebar-search-icon {
+  pointer-events: none;
+  transition:
+    opacity 140ms ease,
+    visibility 140ms ease,
+    transform 160ms ease;
+}
+
+.sidebar-search-wrap:focus-within .sidebar-search-icon {
+  visibility: hidden;
+  opacity: 0;
+  transform: translate(-5px, -50%) scale(0.92);
+}
+
+body:is(.light-mode, .dark-mode)
+  .sidebar-search-wrap:focus-within
+  .sidebar-search-input {
+  padding-left: 14px !important;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Math                                                                         */
+/* -------------------------------------------------------------------------- */
+
+.message .content,
+.lookup-card-body,
+.history-detail-content {
+  min-width: 0;
+}
+
+.math-src {
+  position: relative;
+  max-width: 100%;
+  border-radius: 5px;
+  cursor: copy;
+  transition:
+    background-color 140ms ease,
+    box-shadow 140ms ease,
+    color 140ms ease;
+}
+
+.math-src:hover {
+  background: color-mix(
+    in srgb,
+    var(--blue-cobalt) 7%,
+    transparent
+  );
+}
+
+.math-src:focus-visible {
+  outline: 2px solid var(--blue-cobalt);
+  outline-offset: 3px;
+  box-shadow: var(--blue-focus);
+}
+
+.math-src-display {
+  display: block;
+  width: 100%;
+  margin: 0.9em 0;
+  padding: 10px 12px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-inline: contain;
+  scrollbar-color: var(--blue-line-strong) transparent;
+  scrollbar-width: thin;
+}
+
+.math-src-display .katex-display {
+  width: max-content;
+  min-width: 100%;
+  margin: 0;
+  text-align: center;
+}
+
+.math-copy-feedback {
+  position: absolute;
+  z-index: 3;
+  right: 6px;
+  bottom: 4px;
+  max-width: min(220px, calc(100% - 12px));
+  padding: 4px 7px;
+  background: var(--blue-ink);
+  border-radius: 5px;
+  color: var(--blue-paper);
+  font: 650 10px/1.35 var(--font-sans);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(3px);
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease;
+  white-space: nowrap;
+}
+
+.math-copied {
+  background: var(--blue-success-soft);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--blue-success) 45%, var(--blue-line));
+}
+
+.math-copied .math-copy-feedback,
+.math-copy-failed .math-copy-feedback {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.math-copy-failed {
+  background: var(--blue-danger-soft);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--blue-danger) 50%, var(--blue-line));
+}
+
+.math-copy-failed .math-copy-feedback {
+  background: var(--blue-danger);
+  color: #ffffff;
+}
+
+.math-src-error,
+.math-src-error .katex-error {
+  color: var(--blue-danger) !important;
+}
+
+.math-src-error {
+  padding: 2px 4px;
+  background: var(--blue-danger-soft);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--blue-danger) 36%, var(--blue-line));
+}
+
+/* -------------------------------------------------------------------------- */
+/* Shared inline SVG                                                           */
+/* -------------------------------------------------------------------------- */
+
+:is(
+  .modal-close,
+  .setup-choice-label,
+  .curated-target-warning-icon,
+  .curated-target-hint-icon,
+  .composer-btn-col button,
+  .refine-bar-icon,
+  .refine-bar-undo
+)
+  > svg,
+.current-workspace-icon {
+  display: block;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.modal-close > svg {
+  width: 20px;
+  height: 20px;
+  stroke-width: 2;
+}
+
+.setup-choice-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.setup-choice-label > svg,
+.curated-target-warning-icon > svg,
+.curated-target-hint-icon > svg {
+  width: 17px;
+  height: 17px;
+  stroke-width: 1.9;
+}
+
+.composer-btn-col button > svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Brand motion                                                                */
+/* -------------------------------------------------------------------------- */
+
+body #sidebar > .brand .logo-spiral .spiral-rotate,
+body.motion-on #sidebar > .brand .logo-spiral .spiral-rotate {
+  transform-box: view-box;
+  transform-origin: 32px 32px;
+  animation: helix-logo-rewind 36s linear infinite !important;
+}
+
+body #sidebar > .brand .logo-spiral .spiral-line,
+body.motion-on #sidebar > .brand .logo-spiral .spiral-line {
+  stroke-dasharray: 86 14;
+  animation: helix-logo-flow 9.6s linear infinite !important;
+}
+
+body #sidebar > .brand .logo-spiral .spiral-flow-dot,
+body.motion-on #sidebar > .brand .logo-spiral .spiral-flow-dot {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: helix-logo-pulse 4.8s ease-in-out infinite !important;
+}
+
+@media (max-width: 800px) {
+  body.light-mode .composer-btn-col {
+    padding: 0;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .math-src-display {
+    margin-inline: -4px;
+    width: calc(100% + 8px);
+    padding-inline: 8px;
+  }
+
+  .math-copy-feedback {
+    right: 4px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body #sidebar > .brand .logo-spiral .spiral-rotate,
+  body #sidebar > .brand .logo-spiral .spiral-line,
+  body #sidebar > .brand .logo-spiral .spiral-flow-dot,
+  body.motion-on #sidebar > .brand .logo-spiral .spiral-rotate,
+  body.motion-on #sidebar > .brand .logo-spiral .spiral-line,
+  body.motion-on #sidebar > .brand .logo-spiral .spiral-flow-dot {
+    animation: none !important;
+    transform: none !important;
+  }
+
+  .sidebar-search-input,
+  .sidebar-search-icon,
+  .math-src,
+  .math-copy-feedback {
+    transition: none !important;
+  }
+}

@@ -1,6 +1,6 @@
 {
   "name": "iq-spiral-buddy",
-  "version": "0.6.10",
+  "version": "0.6.11",
   "description": "A local spiral learning studio for roadmap-driven study sessions, structured notes, and deeper revisits with Obsidian.",
   "type": "module",
   "main": "electron/main.cjs",
@@ -44,6 +44,8 @@
     "electron": "^30.5.1",
     "electron-builder": "^24.13.3",
     "esbuild": "0.28.0",
+    "katex": "0.16.21",
+    "marked-katex-extension": "5.1.10",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"
   },
