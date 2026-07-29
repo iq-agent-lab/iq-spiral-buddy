@@ -90,7 +90,7 @@ const WELCOME_EMPTY_HTML = `
         <circle cx="32" cy="32" r="2" />
       </svg>
     </div>
-    <p class="welcome-principle">배움은 돌아올수록 깊어진다.</p>
+    <p class="welcome-principle">반복은 제자리가 아니라,<br />더 깊어지는 나선이다.</p>
   </div>`;
 
 function displayWorkspaceName(workspace) {
@@ -649,17 +649,101 @@ function wireSidePanels() {
   }
 }
 
+function setRoadmapListOpen(open) {
+  els.roadmapList?.classList.toggle("hidden", !open);
+  els.roadmapCurrent?.setAttribute("aria-expanded", String(open));
+  els.topbar
+    ?.querySelector(".current-chapter-jump")
+    ?.setAttribute("aria-expanded", String(open));
+}
+
+function clearSidebarSearchForNavigation() {
+  cancelSidebarSearchPending();
+  state.sidebarQuery = "";
+  if (els.sidebarSearch) els.sidebarSearch.value = "";
+  els.sidebarSearchClear?.classList.add("hidden");
+  if (els.sidebarSearchMeta) {
+    els.sidebarSearchMeta.textContent = "";
+    els.sidebarSearchMeta.classList.add("hidden");
+  }
+  state._searchExpandedForQuery = null;
+  state._searchExpandedDoms = null;
+  state._searchExpandedCats = null;
+  state._searchExpandedRepos = null;
+}
+
+function expandActiveRoadmapPath() {
+  const active = state.roadmaps.find((r) => r.id === state.activeRoadmapId);
+  if (!active || active.source === "curated") return;
+  const domName = active.domain?.name ?? "기타";
+  const catName = active.category?.name ?? "Uncategorized";
+  const { repo } = parseHierarchy(active);
+  state.expandedLocalDomains.add(domName);
+  state.expandedLocalCategories.add(`${domName}::${catName}`);
+  state.expandedLocalRepos.add(`${domName}::${catName}::${repo}`);
+  state.lastAutoExpandedRoadmapId = active.id;
+}
+
+function scrollActiveRoadmapIntoView() {
+  if (!state.activeRoadmapId || !els.roadmapList) return false;
+  const activeId = cssEscape(state.activeRoadmapId);
+  const target = els.roadmapList.querySelector(
+    `.roadmap-item[data-id="${activeId}"], .repo-header[data-flat-roadmap-id="${activeId}"]`,
+  );
+  if (!target || typeof target.scrollIntoView !== "function") return false;
+  target.classList.add("roadmap-reveal-target");
+  target.scrollIntoView({ block: "center", behavior: "smooth" });
+  setTimeout(() => target.classList.remove("roadmap-reveal-target"), 1400);
+  return true;
+}
+
+function revealActiveLearningLocation() {
+  if (document.body.classList.contains("sidebar-collapsed")) {
+    els.sidebarToggle?.click();
+  }
+  clearSidebarSearchForNavigation();
+  expandActiveRoadmapPath();
+  renderRoadmapSelector();
+  renderChapters();
+  setRoadmapListOpen(true);
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      if (!scrollActiveRoadmapIntoView()) {
+        setTimeout(scrollActiveRoadmapIntoView, 80);
+      }
+    });
+  });
+}
+
 function wireRoadmapDropdown() {
-  els.roadmapCurrent.addEventListener("click", () => {
-    els.roadmapList.classList.toggle("hidden");
+  els.roadmapCurrent.addEventListener("click", (event) => {
+    // renderRoadmapSelector() replaces the clicked button's children. Without
+    // stopping propagation, the document-level outside-click handler sees the
+    // detached original target and immediately closes the freshly opened tree.
+    event.stopPropagation();
+    const shouldOpen = els.roadmapList.classList.contains("hidden");
+    if (shouldOpen) {
+      revealActiveLearningLocation();
+    } else {
+      setRoadmapListOpen(false);
+    }
+  });
+  els.topbar?.addEventListener("click", (event) => {
+    if (!event.target.closest(".current-chapter-jump")) return;
+    revealActiveLearningLocation();
   });
   // 클릭 외부 시 닫기
   document.addEventListener("click", (e) => {
+    const currentChapterTrigger =
+      e.target instanceof Element
+        ? e.target.closest(".current-chapter-jump")
+        : null;
     if (
       !els.roadmapCurrent.contains(e.target) &&
-      !els.roadmapList.contains(e.target)
+      !els.roadmapList.contains(e.target) &&
+      !currentChapterTrigger
     ) {
-      els.roadmapList.classList.add("hidden");
+      setRoadmapListOpen(false);
     }
   });
 }
@@ -1498,7 +1582,8 @@ function wireRoadmapListEvents() {
       }
       const id = btn.dataset.id;
       if (id === state.activeRoadmapId) {
-        els.roadmapList.classList.add("hidden");
+        setRoadmapListOpen(false);
+        scrollToRecentChapter();
         return;
       }
       switchRoadmap(id);
@@ -1614,7 +1699,8 @@ function wireRoadmapListEvents() {
       e.stopPropagation();
       const id = btn.dataset.flatRoadmapId;
       if (id === state.activeRoadmapId) {
-        els.roadmapList.classList.add("hidden");
+        setRoadmapListOpen(false);
+        scrollToRecentChapter();
         return;
       }
       switchRoadmap(id);
@@ -1859,19 +1945,12 @@ async function switchRoadmap(roadmapId) {
 
   state.activeRoadmapId = roadmapId;
   localStorage.setItem(LS_KEY, roadmapId);
-  els.roadmapList.classList.add("hidden");
+  setRoadmapListOpen(false);
 
   // v0.5.56 — 검색으로 들어온 경우, 챕터 리스트도 검색어로 필터돼서 비어 보임.
   // 사용자가 검색해서 로드맵을 골랐으면 검색 의도는 끝난 셈 — 자동으로 해제.
   if (state.sidebarQuery) {
-    state.sidebarQuery = "";
-    if (els.sidebarSearch) els.sidebarSearch.value = "";
-    els.sidebarSearchClear?.classList.add("hidden");
-    if (els.sidebarSearchMeta) {
-      els.sidebarSearchMeta.classList.add("hidden");
-      els.sidebarSearchMeta.textContent = "";
-    }
-    // search-expanded 셋은 다음 렌더 때 자동으로 null로 reset됨.
+    clearSidebarSearchForNavigation();
   }
 
   renderRoadmapSelector();
@@ -2033,6 +2112,8 @@ function toggleMicGuide() {
 
 // v0.5.51 — 사이드바 검색 wire-up.
 // 디바운스로 input 부담 줄이고, 변경 시 로드맵 셀렉터 + 챕터 리스트 둘 다 갱신.
+let cancelSidebarSearchPending = () => {};
+
 function initSidebarSearch() {
   if (!els.sidebarSearch) return;
   let timer = null;
@@ -2050,7 +2131,7 @@ function initSidebarSearch() {
     els.sidebarSearchClear?.classList.toggle("hidden", q.length === 0);
     // 검색 시작 시 roadmap-list 자동 노출 → 결과를 바로 볼 수 있게
     if (q) {
-      els.roadmapList?.classList.remove("hidden");
+      setRoadmapListOpen(true);
     }
     renderRoadmapSelector();
     renderChapters();
@@ -2084,6 +2165,7 @@ function initSidebarSearch() {
     if (timer) clearTimeout(timer);
     timer = null;
   };
+  cancelSidebarSearchPending = cancelPending;
   els.sidebarSearch.addEventListener("input", (e) => {
     cancelPending();
     const val = e.target.value;
@@ -5624,7 +5706,7 @@ function updateQuizButton() {
   const labelEl = els.quizBtn.querySelector("span");
   if (labelEl) {
     labelEl.textContent =
-      next.level === 1 ? "이해 확인" : `이해 확인 · ${next.level}`;
+      next.level === 1 ? "퀴즈" : `퀴즈 · ${next.level}`;
   }
   // data-level로 색 변화
   els.quizBtn.dataset.quizLevel = String(next.level);
@@ -5680,11 +5762,11 @@ function setRefining(on) {
   els.refineBtn.setAttribute("aria-busy", String(on));
   els.refineBtn.disabled = on || state.pending || !state.session;
   els.input.disabled = on || !state.session;
-  if (on) setStatus("문장을 정리하는 중…");
-  else if (els.statusBar?.textContent === "문장을 정리하는 중…") setStatus("");
+  if (on) setStatus("문장을 다듬는 중…");
+  else if (els.statusBar?.textContent === "문장을 다듬는 중…") setStatus("");
 }
 
-function showRefineBar(label = "문장이 정리됐어요") {
+function showRefineBar(label = "문장을 다듬었어요") {
   if (!els.refineBar) return;
   if (els.refineBarText) els.refineBarText.textContent = label;
   els.refineBar.classList.remove("hidden");
@@ -5714,7 +5796,7 @@ async function refineInPlace() {
   if (!state.session || state.pending || state.refining) return;
   const raw = els.input.value.trim();
   if (raw.length < 2) {
-    setStatus("정리할 문장이 너무 짧아요.", "error");
+    setStatus("다듬을 문장이 너무 짧아요.", "error");
     setTimeout(() => setStatus(""), 1800);
     return;
   }
@@ -5731,12 +5813,12 @@ async function refineInPlace() {
     state.refineOriginal = originalForRollback;
     state.refineApplied = refined;
     els.input.value = refined;
-    showRefineBar("문장이 정리됐어요 — ⌘Z 또는 [원본]으로 되돌릴 수 있어요");
+    showRefineBar("문장을 다듬었어요 — ⌘Z 또는 [원본]으로 되돌릴 수 있어요");
     els.input.focus();
     const len = els.input.value.length;
     els.input.setSelectionRange(len, len);
   } catch (err) {
-    setStatus(`문장을 정리하지 못했어요: ${err.message}`, "error");
+    setStatus(`문장을 다듬지 못했어요: ${err.message}`, "error");
     setTimeout(() => setStatus(""), 2500);
   } finally {
     setRefining(false);
@@ -5754,13 +5836,13 @@ async function refineThenSend() {
     if (refined && refined !== raw) {
       toSend = refined;
       // 보낸 직후에도 마지막 메시지의 원본을 잠깐 알 수 있게 status로
-      setStatus(`문장을 정리해 보냈어요: "${truncate(raw, 40)}" → "${truncate(refined, 40)}"`);
+      setStatus(`문장을 다듬어 보냈어요: "${truncate(raw, 40)}" → "${truncate(refined, 40)}"`);
       setTimeout(() => {
-        if (els.statusBar?.textContent?.startsWith("문장을 정리해 보냈어요:")) setStatus("");
+        if (els.statusBar?.textContent?.startsWith("문장을 다듬어 보냈어요:")) setStatus("");
       }, 4000);
     }
   } catch (err) {
-    setStatus("문장을 정리하지 못해 원문 그대로 보냈어요", "error");
+    setStatus("문장을 다듬지 못해 원문 그대로 보냈어요", "error");
     setTimeout(() => setStatus(""), 2500);
   } finally {
     setRefining(false);
@@ -6393,12 +6475,17 @@ function updateTopbar() {
   if (state.session) {
     const rmName = state.session.roadmapName ?? "";
     els.topbar.innerHTML = `
-      <svg class="topbar-chapter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-      </svg>
-      <strong class="topbar-chapter-title" title="${escapeAttr(state.session.chapterTitle)}${rmName ? ` — ${escapeAttr(rmName)}` : ""}">${escapeHtml(state.session.chapterTitle)}</strong>
-      <span class="depth">depth ${state.session.depth}</span>
+      <button class="current-chapter-jump" type="button" title="사이드바에서 현재 학습 위치 보기" aria-label="${escapeAttr(state.session.chapterTitle)} — 사이드바에서 현재 학습 위치 보기" aria-controls="roadmap-list" aria-expanded="${String(!els.roadmapList.classList.contains("hidden"))}">
+        <svg class="topbar-chapter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+        </svg>
+        <strong class="topbar-chapter-title" title="${escapeAttr(state.session.chapterTitle)}${rmName ? ` — ${escapeAttr(rmName)}` : ""}">${escapeHtml(state.session.chapterTitle)}</strong>
+        <span class="depth">depth ${state.session.depth}</span>
+        <svg class="current-chapter-jump-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="9 18 15 12 9 6"/>
+        </svg>
+      </button>
     `;
   } else {
     els.topbar.textContent = "";
@@ -6413,7 +6500,7 @@ function enableSessionUi(enabled) {
   if (els.pauseBtn) els.pauseBtn.disabled = !enabled;
   if (els.refineBtn) els.refineBtn.disabled = !enabled;
   els.input.placeholder = enabled
-    ? "궁금한 점이나 이해한 내용을 적어보세요 · Enter로 보내기"
+    ? "궁금한 점이나 이해한 내용을 적어보세요."
     : "세션을 시작하면 입력할 수 있어요";
 }
 

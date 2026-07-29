@@ -2,10 +2,11 @@ import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
-const [html, app, brandCss] = await Promise.all([
+const [html, app, brandCss, electronMain] = await Promise.all([
   readFile(new URL("../client/index.html", import.meta.url), "utf8"),
   readFile(new URL("../client/app.js", import.meta.url), "utf8"),
   readFile(new URL("../client/blue-brand.css", import.meta.url), "utf8"),
+  readFile(new URL("../electron/main.cjs", import.meta.url), "utf8"),
 ]);
 
 describe("client UI contracts", () => {
@@ -50,14 +51,126 @@ describe("client UI contracts", () => {
     );
   });
 
-  test("the welcome screen no longer repeats the edition kicker", () => {
+  test("the welcome screen carries one large static spiral principle", () => {
     assert.doesNotMatch(html, /SPIRAL · BLUE/);
     assert.doesNotMatch(app, /SPIRAL · BLUE/);
-    assert.match(html, /배움은 돌아올수록 깊어진다\./);
-    assert.match(app, /배움은 돌아올수록 깊어진다\./);
+    assert.match(html, /반복은 제자리가 아니라,[\s\S]*더 깊어지는 나선이다\./);
+    assert.match(app, /반복은 제자리가 아니라,[\s\S]*더 깊어지는 나선이다\./);
+    assert.doesNotMatch(html, /배움은 돌아올수록 깊어진다\./);
     assert.doesNotMatch(html, /오늘의 깊이를 선택하세요/);
     assert.doesNotMatch(app, /오늘의 깊이를 선택하세요/);
     assert.doesNotMatch(html, /welcome-steps/);
+    assert.match(
+      brandCss,
+      /\.spiral-welcome \.welcome-mark svg,[\s\S]*?animation: none !important;/,
+    );
+    assert.match(
+      brandCss,
+      /\.spiral-welcome \.welcome-mark \{[\s\S]*?width: clamp\(620px,[\s\S]*?border: 0 !important;/,
+    );
+    assert.match(
+      brandCss,
+      /\.welcome-principle \{[\s\S]*?font-size: clamp\(36px, 5\.1vw, 64px\)/,
+    );
+  });
+
+  test("session actions use short labels that describe their real behavior", () => {
+    assert.match(html, /id="quiz-btn"[\s\S]*?<span>퀴즈<\/span>/);
+    assert.match(app, /next\.level === 1 \? "퀴즈" : `퀴즈 · \$\{next\.level\}`/);
+    assert.match(html, /id="end-btn"[\s\S]*?<span>마치고 저장<\/span>/);
+    assert.match(electronMain, /"마치고 저장"을 먼저 누르세요/);
+    assert.match(html, /id="refine-btn"[\s\S]*?<span>다듬기<\/span>/);
+    assert.match(app, /문장을 다듬는 중…/);
+    assert.match(html, /aria-label="학습 대화 입력"/);
+    assert.match(app, /궁금한 점이나 이해한 내용을 적어보세요\./);
+    assert.doesNotMatch(app, /Enter로 보내기/);
+  });
+
+  test("workspace settings keep secondary information quiet and actions obvious", () => {
+    assert.match(html, /<div class="settings-divider"><span>학습 자료<\/span><\/div>/);
+    assert.doesNotMatch(html, /iq-dev-lab 학습 자료/i);
+    assert.doesNotMatch(html, /워크스페이스마다 vault 안의 별도 폴더/);
+    assert.match(html, /class="current-workspace-icon"/);
+    assert.doesNotMatch(html, /📍 현재 워크스페이스/);
+    assert.match(
+      brandCss,
+      /\.settings-wizard-link \{[\s\S]*?border: 1px solid var\(--blue-line\) !important;[\s\S]*?box-shadow: var\(--blue-shadow-sm\) !important;/,
+    );
+  });
+
+  test("current learning location expands, scrolls and remains keyboard discoverable", () => {
+    assert.match(
+      html,
+      /id="roadmap-current"[\s\S]*?aria-controls="roadmap-list"[\s\S]*?aria-expanded="false"/,
+    );
+    assert.match(app, /function expandActiveRoadmapPath\(\)/);
+    assert.match(app, /state\.expandedLocalDomains\.add\(domName\)/);
+    assert.match(app, /state\.expandedLocalCategories\.add\(`\$\{domName\}::\$\{catName\}`\)/);
+    assert.match(app, /state\.expandedLocalRepos\.add\(`\$\{domName\}::\$\{catName\}::\$\{repo\}`\)/);
+    assert.match(app, /function revealActiveLearningLocation\(\)/);
+    assert.match(
+      app,
+      /roadmapCurrent\.addEventListener\("click", \(event\) => \{[\s\S]*?event\.stopPropagation\(\)/,
+    );
+    assert.match(app, /class="current-chapter-jump"/);
+    assert.match(
+      app,
+      /class="current-chapter-jump"[\s\S]*?aria-controls="roadmap-list"[\s\S]*?aria-expanded=/,
+    );
+    assert.match(
+      app,
+      /querySelector\("\.current-chapter-jump"\)[\s\S]*?setAttribute\("aria-expanded", String\(open\)\)/,
+    );
+    assert.match(app, /const currentChapterTrigger =/);
+    assert.doesNotMatch(app, /!els\.topbar\?\.contains\(e\.target\)/);
+    assert.match(app, /scrollActiveRoadmapIntoView/);
+    assert.match(brandCss, /\.roadmap-reveal-target/);
+  });
+
+  test("saving the setup wizard from a running app restarts instead of double-booting", () => {
+    assert.match(
+      electronMain,
+      /async function activateSavedSetupConfig\(cfg, relaunchAfterSave\)/,
+    );
+    assert.match(
+      electronMain,
+      /const relaunchAfterSave = Boolean\(serverStarted\)/,
+    );
+    assert.match(electronMain, /"저장하고 다시 시작"/);
+    assert.match(electronMain, /"마치고 저장"을 눌러주세요/);
+    assert.match(
+      electronMain,
+      /if \(relaunchAfterSave\) \{[\s\S]*?app\.relaunch\(\);[\s\S]*?app\.exit\(0\);/,
+    );
+    assert.match(
+      electronMain,
+      /return activateSavedSetupConfig\(existing, relaunchAfterSave\)/,
+    );
+    assert.match(
+      electronMain,
+      /return activateSavedSetupConfig\(cfg, relaunchAfterSave\)/,
+    );
+  });
+
+  test("light composer is one surface and desktop junctions are rounded", () => {
+    assert.match(
+      brandCss,
+      /body\.light-mode \.composer #input \{[\s\S]*?background: transparent !important;/,
+    );
+    assert.match(
+      brandCss,
+      /body\.light-mode \.composer #input:focus \{[\s\S]*?inset 0 -2px 0 var\(--blue-cobalt\)[\s\S]*?outline: none !important;/,
+    );
+    assert.match(
+      brandCss,
+      /#topbar \{[\s\S]*?border-bottom-left-radius: 16px !important;/,
+    );
+    assert.match(
+      brandCss,
+      /\.composer \{[\s\S]*?border-top-left-radius: 16px !important;/,
+    );
+    assert.match(html, /blue-brand\.css\?v=0\.6\.8/);
+    assert.match(html, /app\.js\?v=0\.6\.8/);
   });
 
   test("chapter progress separates current, completed, upcoming and recent", () => {
@@ -111,6 +224,7 @@ describe("client UI contracts", () => {
   });
 
   test("the session depth badge stays attached to its chapter title", () => {
+    assert.match(app, /<button class="current-chapter-jump"/);
     assert.match(
       app,
       /<strong class="topbar-chapter-title"[\s\S]*?<span class="depth">depth \$\{state\.session\.depth\}<\/span>/,

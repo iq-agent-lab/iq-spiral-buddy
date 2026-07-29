@@ -4939,3 +4939,269 @@ body:is(.light-mode, .dark-mode)
 body.dark-mode .chapter-item--journey-complete .chapter-btn .num {
   color: var(--blue-canvas) !important;
 }
+
+/* -------------------------------------------------------------------------- */
+/* v0.6.8 — discoverable controls, smart location reveal and a larger spiral   */
+/* -------------------------------------------------------------------------- */
+
+/* The brand mark quietly rewinds; the empty-state spiral is a static field. */
+
+body #sidebar > .brand .logo-spiral .spiral-rotate,
+body.motion-on #sidebar > .brand .logo-spiral .spiral-rotate {
+  transform-box: view-box;
+  transform-origin: 32px 32px;
+  animation: blue-brand-rewind 40s linear infinite !important;
+}
+
+.spiral-welcome .welcome-mark,
+.spiral-welcome .welcome-mark svg,
+.spiral-welcome .welcome-mark path,
+body.motion-on .spiral-welcome .welcome-mark svg,
+body.motion-on .spiral-welcome .welcome-mark path {
+  animation: none !important;
+}
+
+body:is(.light-mode, .dark-mode) .spiral-welcome {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  width: min(1040px, calc(100% - 28px));
+  min-height: clamp(420px, 68vh, 720px);
+  align-content: center;
+  justify-items: start;
+  margin: 0 auto;
+  padding: clamp(38px, 7vw, 92px) !important;
+  overflow: hidden;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  text-align: left;
+}
+
+body:is(.light-mode, .dark-mode) .spiral-welcome .welcome-mark {
+  position: absolute;
+  z-index: 0;
+  right: clamp(-280px, -16vw, -120px);
+  bottom: clamp(-350px, -20vw, -170px);
+  width: clamp(620px, 74vw, 1040px) !important;
+  height: clamp(620px, 74vw, 1040px) !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  color: var(--blue-cobalt) !important;
+  opacity: 0.14;
+  pointer-events: none;
+}
+
+body.dark-mode .spiral-welcome .welcome-mark {
+  opacity: 0.18;
+}
+
+.spiral-welcome .welcome-mark svg {
+  width: 100% !important;
+  height: 100% !important;
+  overflow: visible;
+  transform: none !important;
+}
+
+body:is(.light-mode, .dark-mode) .welcome-principle {
+  position: relative;
+  z-index: 1;
+  max-width: 14ch;
+  margin: 0;
+  color: var(--blue-ink) !important;
+  font-family: var(--blue-font-editorial);
+  font-size: clamp(36px, 5.1vw, 64px);
+  font-weight: 680;
+  line-height: 1.11;
+  letter-spacing: -0.055em;
+  text-wrap: balance;
+}
+
+/* The current chapter is a real navigation control, not passive topbar copy. */
+
+#current-chapter .current-chapter-jump {
+  display: inline-flex !important;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 38px;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 9px !important;
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  border-radius: 10px !important;
+  color: var(--blue-ink-soft) !important;
+  box-shadow: none !important;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+#current-chapter .current-chapter-jump:hover {
+  background: var(--blue-paper-muted) !important;
+  border-color: var(--blue-line) !important;
+  color: var(--blue-ink) !important;
+}
+
+#current-chapter .current-chapter-jump:focus-visible {
+  outline: 2px solid var(--blue-cobalt) !important;
+  outline-offset: 1px !important;
+}
+
+#current-chapter .current-chapter-jump .topbar-chapter-title {
+  flex: 0 1 auto;
+}
+
+.current-chapter-jump-icon {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  color: var(--blue-ink-faint);
+  transition: transform 150ms ease;
+}
+
+.current-chapter-jump:hover .current-chapter-jump-icon {
+  color: var(--blue-cobalt);
+  transform: translateX(2px);
+}
+
+.roadmap-reveal-target {
+  box-shadow:
+    inset 3px 0 0 var(--blue-cobalt),
+    inset 0 0 0 1px
+      color-mix(in srgb, var(--blue-cobalt) 44%, transparent) !important;
+  animation: blue-roadmap-reveal 720ms ease-out both;
+}
+
+@keyframes blue-roadmap-reveal {
+  0% {
+    background: color-mix(
+      in srgb,
+      var(--blue-cobalt) 24%,
+      var(--blue-paper)
+    );
+  }
+  100% {
+    background: var(--blue-cobalt-soft);
+  }
+}
+
+/* Settings actions look and read like actions. */
+
+body:is(.light-mode, .dark-mode) .settings-wizard-link {
+  min-height: 46px;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 10px 13px !important;
+  background: var(--blue-paper-muted) !important;
+  border: 1px solid var(--blue-line) !important;
+  border-radius: 10px !important;
+  color: var(--blue-ink) !important;
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: var(--blue-shadow-sm) !important;
+}
+
+body:is(.light-mode, .dark-mode) .settings-wizard-link::after {
+  content: "›";
+  margin-left: auto;
+  color: var(--blue-cobalt);
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+body:is(.light-mode, .dark-mode) .settings-wizard-link:hover {
+  background: var(--blue-cobalt-soft) !important;
+  border-color: var(--blue-cobalt) !important;
+  color: var(--blue-cobalt-strong) !important;
+  transform: translateY(-1px);
+}
+
+.settings-wizard-link .wizard-link-icon {
+  width: 18px;
+  height: 18px;
+  color: var(--blue-cobalt);
+}
+
+body:is(.light-mode, .dark-mode) .curated-target-use-ws {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.current-workspace-icon {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+}
+
+/* White mode uses one continuous writing surface, with a clear focus cue. */
+
+body.light-mode .composer .composer-input-col,
+body.light-mode .composer #input {
+  background: transparent !important;
+}
+
+body.light-mode .composer #input,
+body.light-mode .composer #input:hover:not(:disabled) {
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+body.light-mode .composer #input:focus {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: inset 0 -2px 0 var(--blue-cobalt) !important;
+  outline: none !important;
+}
+
+body.light-mode .composer #input:disabled {
+  background: transparent !important;
+  opacity: 0.72;
+}
+
+/* Soft inner junctions make the workspace feel like one composed surface. */
+
+@media (min-width: 801px) {
+  body:is(.light-mode, .dark-mode):not(.sidebar-collapsed) #topbar {
+    border-bottom-left-radius: 16px !important;
+  }
+
+  body:is(.light-mode, .dark-mode):not(.sidebar-collapsed) .composer {
+    border-top-left-radius: 16px !important;
+  }
+}
+
+@media (max-width: 800px) {
+  body:is(.light-mode, .dark-mode) .spiral-welcome {
+    width: calc(100% - 12px);
+    min-height: clamp(320px, 56vh, 520px);
+    padding: 30px 24px !important;
+  }
+
+  body:is(.light-mode, .dark-mode) .spiral-welcome .welcome-mark {
+    right: -190px;
+    bottom: -210px;
+    width: clamp(500px, 124vw, 700px) !important;
+    height: clamp(500px, 124vw, 700px) !important;
+  }
+
+  body:is(.light-mode, .dark-mode) .welcome-principle {
+    font-size: clamp(32px, 9vw, 48px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body #sidebar > .brand .logo-spiral .spiral-rotate,
+  body.motion-on #sidebar > .brand .logo-spiral .spiral-rotate,
+  .roadmap-reveal-target {
+    animation: none !important;
+    transform: none !important;
+  }
+}
