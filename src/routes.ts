@@ -824,6 +824,7 @@ function registerSearchNotesRoutes(app: Hono, config: Config) {
         roadmapId: n.roadmapId,
         roadmapName: n.roadmapName,
         date: n.date,
+        modifiedAt: n.modifiedAt,
         depth: n.depth,
         summary: n.summary,
         relativePath: n.relativePath,

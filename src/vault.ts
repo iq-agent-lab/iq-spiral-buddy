@@ -20,6 +20,8 @@ export interface SpiralNote {
   /** v0.5.22+: 상위 레포 (옛 노트는 roadmapId에서 추출). */
   repo: string | null;
   date: string;
+  /** 실제 파일 수정 시각. 같은 날짜의 세션 순서를 정확히 복원하는 데 사용. */
+  modifiedAt: string;
   depth: number;
   tags: string[];
   summary: string;
@@ -76,9 +78,10 @@ async function listSpiralNotesUncached(
     (rel) => readNote(path.join(spiralRoot, rel), rel),
   );
   const notes = loaded.filter((note): note is SpiralNote => note !== null);
-  // date desc, 동일 날짜는 relativePath로 안정 정렬(결정성).
+  // 실제 수정 시각 내림차순. 같은 날 여러 세션도 정확한 최근 순서를 유지한다.
   notes.sort(
     (a, b) =>
+      b.modifiedAt.localeCompare(a.modifiedAt) ||
       b.date.localeCompare(a.date) ||
       a.relativePath.localeCompare(b.relativePath),
   );
@@ -117,7 +120,7 @@ async function readNote(
   relativePath: string,
 ): Promise<SpiralNote | null> {
   try {
-    const parsed = await readFrontmatter(abs);
+    const [parsed, stat] = await Promise.all([readFrontmatter(abs), fs.stat(abs)]);
     const fm = parsed.data as Record<string, unknown>;
     // 새 스키마 (v0.5.22+): chapter, repo, roadmap 우선. 옛 스키마 (title/topic/chapter_id/roadmap_id) 호환.
     const newChapter = (fm.chapter as string | undefined) ?? null;
@@ -153,6 +156,7 @@ async function readNote(
       roadmapName: inferredRoadmapName ?? (fm.roadmap as string | undefined) ?? null,
       repo: inferredRepo ?? null,
       date: formatDate(fm.date),
+      modifiedAt: stat.mtime.toISOString(),
       depth: typeof fm.depth === "number" ? fm.depth : 1,
       tags: Array.isArray(fm.tags) ? (fm.tags as string[]) : [],
       summary: (fm.summary as string | undefined) ?? "",

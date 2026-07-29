@@ -44,27 +44,11 @@
         </div>
       </header>
 
-      <section class="workspace-selector" id="workspace-section">
-        <h2>학습 공간</h2>
-        <button id="workspace-current" class="workspace-current" title="워크스페이스 전환">
-          <span class="workspace-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 3.5 19 7.4v7.2l-7 3.9-7-3.9V7.4l7-3.9Z" />
-              <path d="m5 7.4 7 3.9 7-3.9" />
-              <path d="M12 11.3v7.2" />
-              <path d="M8.5 9.3v3.9l3.5 2 3.5-2V9.3" />
-            </svg>
-          </span>
-          <span class="workspace-name" id="workspace-name">불러오는 중…</span>
-          <span class="caret">▼</span>
-        </button>
-        <div id="workspace-list" class="workspace-list hidden"></div>
-      </section>
-
-      <section class="sidebar-search-section">
+      <section class="sidebar-search-section" role="search" aria-labelledby="sidebar-search-title">
+        <h2 id="sidebar-search-title">목차 검색</h2>
         <div class="sidebar-search-wrap">
           <span class="sidebar-search-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="11" cy="11" r="7"/>
               <line x1="21" y1="21" x2="16.65" y2="16.65"/>
             </svg>
@@ -73,12 +57,15 @@
             id="sidebar-search"
             class="sidebar-search-input"
             type="search"
-            placeholder="레포 · 카테고리 · 챕터 검색…"
+            placeholder="로드맵이나 챕터 이름 입력"
             autocomplete="off"
             spellcheck="false"
-            aria-label="사이드바 검색"
+            aria-label="목차 검색"
+            aria-controls="roadmap-list chapter-list"
+            aria-describedby="sidebar-search-meta"
+            aria-keyshortcuts="Meta+F Control+F"
           />
-          <kbd class="sidebar-search-kbd" aria-hidden="true">⌘F</kbd>
+          <kbd id="sidebar-search-kbd" class="sidebar-search-kbd" aria-hidden="true">⌘ F</kbd>
           <button id="sidebar-search-clear" class="sidebar-search-clear hidden" type="button" aria-label="검색어 지우기" title="검색어 지우기 (Esc)">
             <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
               <line x1="18" y1="6" x2="6" y2="18"/>
@@ -86,7 +73,7 @@
             </svg>
           </button>
         </div>
-        <div id="sidebar-search-meta" class="sidebar-search-meta hidden"></div>
+        <div id="sidebar-search-meta" class="sidebar-search-meta hidden" role="status" aria-live="polite"></div>
       </section>
 
       <section class="roadmap-selector" id="roadmap-section">
@@ -211,7 +198,6 @@
                 <circle cx="32" cy="32" r="2" />
               </svg>
             </div>
-            <div class="welcome-index">SPIRAL · BLUE</div>
             <h2>오늘의 깊이를 선택하세요</h2>
             <p>왼쪽 학습 순서에서 챕터를 고르거나<br />‘다음 나선’의 추천으로 이어가세요.</p>
             <div class="welcome-steps" aria-label="학습 흐름">
@@ -443,6 +429,11 @@
           <h3 id="settings-modal-title">설정</h3>
           <button id="settings-modal-close" class="modal-close" type="button" aria-label="닫기">✕</button>
         </header>
+        <div id="settings-load-state" class="settings-load-state hidden" role="status" aria-live="polite">
+          <span class="inline-spinner" aria-hidden="true"></span>
+          <span id="settings-load-state-text">설정을 불러오는 중…</span>
+          <button id="settings-load-retry" class="load-retry hidden" type="button">다시 시도</button>
+        </div>
         <div class="settings-tabs">
           <button class="settings-tab active" data-tab="general">일반</button>
           <button class="settings-tab" data-tab="workspaces">워크스페이스</button>
@@ -551,6 +542,11 @@
         </div>
 
         <div class="settings-panel hidden" data-panel="workspaces">
+          <div class="settings-workspace-intro">
+            <span>현재 학습 공간</span>
+            <strong id="settings-workspace-active-name">불러오는 중…</strong>
+            <p>학습 공간의 전환·추가·삭제는 이곳에서 관리합니다.</p>
+          </div>
           <div class="settings-workspace-list" id="settings-workspace-list"></div>
 
           <button id="settings-add-workspace-btn" class="settings-add-btn" type="button">

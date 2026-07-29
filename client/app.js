@@ -154,9 +154,6 @@ function cacheEls() {
   els.settingsBtn = $("settings-btn");
   els.settingsModal = $("settings-modal");
   els.settingsModalClose = $("settings-modal-close");
-  els.workspaceCurrent = $("workspace-current");
-  els.workspaceName = $("workspace-name");
-  els.workspaceList = $("workspace-list");
   els.addWsModal = $("add-workspace-modal");
   // Look-up panel + selection toolbar
   els.lookupPanel = $("lookup-panel");
@@ -426,6 +423,29 @@ function wireSidebar() {
       const isCollapsed = document.body.classList.contains("sidebar-collapsed");
       setSidebarCollapsed(!isCollapsed);
     }
+    if (e.key === "Escape") {
+      document
+        .querySelectorAll(".chapter-actions.actions-open")
+        .forEach((actions) => {
+          actions.classList.remove("actions-open");
+          actions
+            .querySelector(".chapter-actions-toggle")
+            ?.setAttribute("aria-expanded", "false");
+        });
+    }
+  });
+  document.addEventListener("click", (e) => {
+    if (e.target instanceof Element && e.target.closest(".chapter-actions")) {
+      return;
+    }
+    document
+      .querySelectorAll(".chapter-actions.actions-open")
+      .forEach((actions) => {
+        actions.classList.remove("actions-open");
+        actions
+          .querySelector(".chapter-actions-toggle")
+          ?.setAttribute("aria-expanded", "false");
+      });
   });
 
   // 사이드바 너비 조절 (드래그 핸들)
@@ -531,9 +551,8 @@ function wireSidePanels() {
   if (window.spiralSettings) {
     initSettings();
   } else {
-    // 브라우저 모드 (pnpm dev) — 설정 버튼 숨김, 워크스페이스 셀렉터 숨김
+    // 브라우저 모드 (pnpm dev) — Electron 설정은 사용할 수 없음
     els.settingsBtn?.classList.add("hidden");
-    document.getElementById("workspace-section")?.classList.add("hidden");
   }
 
   // Look-up 기능 (사이드 학습)
@@ -845,6 +864,9 @@ async function loadRoadmapData() {
     roadmapId === state.activeRoadmapId &&
     !controller.signal.aborted;
 
+  // 다른 로드맵의 완료/최근 상태가 새 로드맵의 로딩 화면에 섞이지 않게 한다.
+  state.chapters = [];
+  state.history = [];
   els.chapterList.innerHTML = `<li class="loading">불러오는 중…</li>`;
   els.historyList.innerHTML = `<li class="loading">불러오는 중…</li>`;
   // suggestion 영역은 일단 숨겨두고 chapters 확인 후 결정
@@ -911,6 +933,9 @@ async function loadRoadmapData() {
       if (!isCurrent()) return;
       state.history = Array.isArray(historyRes) ? historyRes : [];
       renderHistory();
+      // chapters/history는 병렬 조회된다. history가 나중에 도착하면 실제 수정
+      // 시각으로 계산한 "마지막" 표시를 다시 반영한다.
+      if (state.chapters.length > 0) renderChapters();
     } catch (error) {
       if (isAbortedRequest(error, controller.signal) || !isCurrent()) return;
       const reason = readableLoadError(error);
@@ -1772,7 +1797,6 @@ async function _handleSessionInterruptionBody() {
             <circle cx="32" cy="32" r="2" />
           </svg>
         </div>
-        <div class="welcome-index">SPIRAL · BLUE</div>
         <h2>오늘의 깊이를 선택하세요</h2>
         <p>왼쪽 학습 순서에서 챕터를 고르거나<br />‘다음 나선’의 추천으로 이어가세요.</p>
         <div class="welcome-steps" aria-label="학습 흐름">
@@ -1881,10 +1905,10 @@ function scrollToRecentChapter() {
     ? state.chapters.find((c) => c.id === state.session.chapterId)
     : null;
   if (!target) {
-    const visited = state.chapters
-      .filter((c) => c.lastDate)
-      .sort((a, b) => (b.lastDate ?? "").localeCompare(a.lastDate ?? ""));
-    target = visited[0];
+    const recentChapterId = getRecentChapterId();
+    target = recentChapterId
+      ? state.chapters.find((chapter) => chapter.id === recentChapterId)
+      : null;
   }
   if (!target) return;
   const tryScroll = () => {
@@ -2023,6 +2047,12 @@ function toggleMicGuide() {
 function initSidebarSearch() {
   if (!els.sidebarSearch) return;
   let timer = null;
+  const shortcut = document.getElementById("sidebar-search-kbd");
+  const isMac =
+    /Mac|iPhone|iPad|iPod/i.test(navigator.platform ?? "") ||
+    /Mac OS/i.test(navigator.userAgent ?? "");
+  if (shortcut) shortcut.textContent = isMac ? "⌘ F" : "Ctrl F";
+
   const apply = (raw) => {
     const q = (raw ?? "").trim();
     const prev = state.sidebarQuery ?? "";
@@ -2038,8 +2068,8 @@ function initSidebarSearch() {
     // 매칭 수 카운트 표시
     if (els.sidebarSearchMeta) {
       if (!q) {
-        els.sidebarSearchMeta.classList.add("hidden");
         els.sidebarSearchMeta.textContent = "";
+        els.sidebarSearchMeta.classList.add("hidden");
       } else {
         const ql = q.toLowerCase();
         const roadmapHits = state.roadmaps.filter((r) => {
@@ -2061,14 +2091,22 @@ function initSidebarSearch() {
       }
     }
   };
-  els.sidebarSearch.addEventListener("input", (e) => {
+  const cancelPending = () => {
     if (timer) clearTimeout(timer);
+    timer = null;
+  };
+  els.sidebarSearch.addEventListener("input", (e) => {
+    cancelPending();
     const val = e.target.value;
-    timer = setTimeout(() => apply(val), 100);
+    timer = setTimeout(() => {
+      timer = null;
+      apply(val);
+    }, 100);
   });
   // Esc → 검색어 비우기 + 포커스 해제
   els.sidebarSearch.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
+      cancelPending();
       els.sidebarSearch.value = "";
       apply("");
       els.sidebarSearch.blur();
@@ -2076,6 +2114,7 @@ function initSidebarSearch() {
   });
   // X 버튼
   els.sidebarSearchClear?.addEventListener("click", () => {
+    cancelPending();
     els.sidebarSearch.value = "";
     apply("");
     els.sidebarSearch.focus();
@@ -2092,8 +2131,16 @@ function initSidebarSearch() {
       const tag = (document.activeElement?.tagName ?? "").toLowerCase();
       if (tag === "input" || tag === "textarea") return;
       e.preventDefault();
-      els.sidebarSearch?.focus();
-      els.sidebarSearch?.select();
+      const focusSearch = () => {
+        els.sidebarSearch?.focus();
+        els.sidebarSearch?.select();
+      };
+      if (document.body.classList.contains("sidebar-collapsed")) {
+        els.sidebarToggle?.click();
+        requestAnimationFrame(focusSearch);
+      } else {
+        focusSearch();
+      }
     }
   });
 }
@@ -2113,22 +2160,51 @@ function _highlightMatch(text, query) {
   return `${before}<mark class="sidebar-search-hit">${match}</mark>${after}`;
 }
 
+function getRecentChapterId() {
+  const chapters = state.chapters ?? [];
+  const chapterIds = new Set(chapters.map((chapter) => chapter.id));
+  const normalizeTitle = (value) =>
+    String(value ?? "")
+      .replace(/^\s*\d+[.\-_:]\s*/, "")
+      .trim()
+      .toLowerCase();
+  const recentHistory = [...(state.history ?? [])].sort((a, b) =>
+    String(b.modifiedAt ?? b.date ?? "").localeCompare(
+      String(a.modifiedAt ?? a.date ?? ""),
+    ),
+  );
+  for (const note of recentHistory) {
+    if (note.chapterId && chapterIds.has(note.chapterId)) {
+      return note.chapterId;
+    }
+    // 최신 스키마는 chapter_id를 쓰지 않으므로 표시 제목으로 매칭한다.
+    const noteTitle = normalizeTitle(note.topic ?? note.title);
+    const matched = chapters.find(
+      (chapter) => normalizeTitle(chapter.title) === noteTitle,
+    );
+    if (matched) return matched.id;
+  }
+
+  // 옛 노트처럼 chapterId/수정 시각 정보가 없을 때만 일 단위 진행 정보로 폴백.
+  const visited = [...(state.chapters ?? [])]
+    .filter((chapter) => chapter.lastDate)
+    .sort((a, b) =>
+      String(b.lastDate ?? "").localeCompare(String(a.lastDate ?? "")),
+    );
+  return visited[0]?.id ?? null;
+}
+
 function renderChapters() {
   els.chapterList.innerHTML = "";
   if (state.chapters.length === 0) {
     els.chapterList.innerHTML = `<li class="empty">챕터 없음</li>`;
     return;
   }
-  // "마지막" 뱃지용 id — 마지막으로 end-save한 챕터(lastDate 기준). 진행 상태와 무관.
-  const recentChapterId = (() => {
-    const visited = state.chapters
-      .filter((c) => c.lastDate)
-      .sort((a, b) => (b.lastDate ?? "").localeCompare(a.lastDate ?? ""));
-    return visited[0]?.id ?? null;
-  })();
-  // v0.5.98 — 활성(accent bar) 표식은 "현재 진행 중인 세션의 챕터" 기준.
-  // 진행 중 세션이 없으면 마지막 학습 챕터로 폴백(재진입 시 "어디까지 했더라" 표식 유지).
-  const activeChapterId = state.session?.chapterId ?? recentChapterId;
+  // 실제 노트 수정 시각 기준. 같은 날 여러 챕터를 학습해도 정확히 표시한다.
+  const recentChapterId = getRecentChapterId();
+  // 현재 세션과 마지막 학습을 분리한다. 세션이 없을 때 최근 챕터를
+  // active로 취급하면 "진행 중"과 "마지막 완료"가 같은 상태로 보인다.
+  const activeChapterId = state.session?.chapterId ?? null;
   // 검색어가 있으면 필터링 (v0.5.51)
   const q = (state.sidebarQuery ?? "").trim().toLowerCase();
   const filtered = q
@@ -2147,10 +2223,22 @@ function renderChapters() {
     const isRecent = ch.id === recentChapterId;
     if (isRecent) li.classList.add("chapter-item--recent");
     const isActive = ch.id === activeChapterId;
-    if (isActive) li.classList.add("chapter-item--active");
+    const progressState = isActive
+      ? "current"
+      : visited
+        ? "completed"
+        : "upcoming";
+    li.classList.add(`chapter-item--${progressState}`);
+    li.dataset.progressState = progressState;
+    if (isActive) {
+      li.classList.add("chapter-item--active");
+    }
     const badge = visited
       ? `<span class="chapter-depth-pill" title="마지막 학습: ${escapeAttr(ch.lastDate ?? "")} · 총 ${ch.visitCount}회">d${ch.maxDepth}</span>`
       : `<span class="chapter-depth-pill empty"></span>`;
+    const recentBadge = isRecent
+      ? `<span class="chapter-last-badge" aria-label="마지막 학습 챕터" title="가장 최근에 학습한 챕터">마지막</span>`
+      : "";
     // visited 챕터에 노트 열기 + 삭제 트리거 (hover 시 등장)
     const openBtn = visited
       ? `<button type="button" class="chapter-open-btn" data-chapter-open="${escapeAttr(ch.id)}" title="기존 노트 열기 (Obsidian)" aria-label="${escapeAttr(ch.title)} 기존 노트 열기">
@@ -2184,24 +2272,66 @@ function renderChapters() {
         </svg>
       </button>`;
     li.innerHTML = `
-      <button class="chapter-btn ${visited ? "visited" : ""}" data-id="${escapeAttr(ch.id)}">
+      <button class="chapter-btn ${visited ? "visited" : ""}" data-id="${escapeAttr(ch.id)}"${isActive ? ' aria-current="step"' : ""}>
         <span class="num">${originalIdx + 1}.</span>
         <span class="title">${titleHtml}</span>
-        ${badge}
+        <span class="chapter-meta${!visited && !isRecent ? " empty" : ""}">${recentBadge}${badge}</span>
       </button>
       <span class="chapter-actions">
-        ${aiBtn}
-        ${openBtn}
-        ${trashBtn}
+        <button type="button" class="chapter-actions-toggle" aria-label="${escapeAttr(ch.title)} 챕터 작업 열기" aria-expanded="false">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true">
+            <circle cx="5" cy="12" r="1.5"></circle>
+            <circle cx="12" cy="12" r="1.5"></circle>
+            <circle cx="19" cy="12" r="1.5"></circle>
+          </svg>
+        </button>
+        <span class="chapter-action-buttons">
+          ${aiBtn}
+          ${openBtn}
+          ${trashBtn}
+        </span>
       </span>
     `;
     li.addEventListener("click", async (e) => {
+      const actionsToggle = e.target.closest(".chapter-actions-toggle");
+      if (actionsToggle) {
+        e.preventDefault();
+        e.stopPropagation();
+        const actions = actionsToggle.closest(".chapter-actions");
+        const willOpen = !actions.classList.contains("actions-open");
+        document
+          .querySelectorAll(".chapter-actions.actions-open")
+          .forEach((item) => {
+            item.classList.remove("actions-open");
+            item
+              .querySelector(".chapter-actions-toggle")
+              ?.setAttribute("aria-expanded", "false");
+          });
+        actions.classList.toggle("actions-open", willOpen);
+        actionsToggle.setAttribute("aria-expanded", String(willOpen));
+        return;
+      }
+      const closeActionsMenu = () => {
+        const actions = e.target.closest(".chapter-actions");
+        actions?.classList.remove("actions-open");
+        actions
+          ?.querySelector(".chapter-actions-toggle")
+          ?.setAttribute("aria-expanded", "false");
+      };
+      const resolveActionsAnchor = (trigger) => {
+        const toggle = trigger
+          .closest(".chapter-actions")
+          ?.querySelector(".chapter-actions-toggle");
+        return toggle && toggle.getClientRects().length > 0 ? toggle : trigger;
+      };
       // v0.5.70 — AI 카드(💡) 클릭은 별도 popover 흐름
       const aiTrigger = e.target.closest("[data-chapter-ai]");
       if (aiTrigger) {
         e.preventDefault();
         e.stopPropagation();
-        openChapterAiCardPopover(aiTrigger, ch);
+        const anchor = resolveActionsAnchor(aiTrigger);
+        closeActionsMenu();
+        openChapterAiCardPopover(anchor, ch);
         return;
       }
       // 노트 열기 (📖) 클릭은 Obsidian 노트 열기로 분기
@@ -2209,7 +2339,9 @@ function renderChapters() {
       if (openTrigger) {
         e.preventDefault();
         e.stopPropagation();
-        openChapterNotePopover(openTrigger, ch);
+        const anchor = resolveActionsAnchor(openTrigger);
+        closeActionsMenu();
+        openChapterNotePopover(anchor, ch);
         return;
       }
       // 휴지통 버튼 클릭은 삭제 팝오버로 분기
@@ -2217,7 +2349,9 @@ function renderChapters() {
       if (trigger) {
         e.preventDefault();
         e.stopPropagation();
-        openDeletePopover(trigger, {
+        const anchor = resolveActionsAnchor(trigger);
+        closeActionsMenu();
+        openDeletePopover(anchor, {
           kind: "chapter",
           roadmapId: state.activeRoadmapId,
           chapterId: ch.id,
@@ -2465,43 +2599,54 @@ function _renderChapterAiCardBody(pop, chapter, card) {
 
 let _settingsCache = null;
 
-async function initSettings() {
-  try {
-    _settingsCache = await window.spiralSettings.get();
-    renderWorkspaceSelector();
-  } catch (error) {
-    // IPC 초기화 실패가 정적 "불러오는 중…" 문구와 unhandled rejection으로
-    // 남지 않게 한다. 나머지 설정 버튼 wiring은 그대로 살려 재진입 가능하게 한다.
-    if (els.workspaceName) els.workspaceName.textContent = "학습 공간";
-    setStatus(
-      `워크스페이스 정보를 불러오지 못했어요: ${readableLoadError(error)}`,
-      "error",
-    );
-  }
+function setSettingsLoadState(mode, message = "") {
+  const blocked = mode !== "ready";
+  els.settingsModal
+    ?.querySelectorAll(".settings-tabs, .settings-panel")
+    .forEach((element) => {
+      element.inert = blocked;
+    });
+  els.settingsModal?.classList.toggle("settings-is-loading", mode === "loading");
+  els.settingsModal?.classList.toggle("settings-load-failed", mode === "error");
 
+  const stateEl = document.getElementById("settings-load-state");
+  const textEl = document.getElementById("settings-load-state-text");
+  const retryBtn = document.getElementById("settings-load-retry");
+  if (!stateEl || !textEl || !retryBtn) return;
+  stateEl.classList.toggle("hidden", mode === "ready");
+  retryBtn.classList.toggle("hidden", mode !== "error");
+  textEl.textContent =
+    mode === "error"
+      ? message || "설정을 불러오지 못했어요."
+      : "설정을 불러오는 중…";
+}
+
+async function getSettingsWithTimeout(timeoutMs = 8_000) {
+  let timer;
+  try {
+    return await Promise.race([
+      window.spiralSettings.get(),
+      new Promise((_, reject) => {
+        timer = window.setTimeout(
+          () => reject(new Error("설정 응답 시간이 초과되었습니다.")),
+          timeoutMs,
+        );
+      }),
+    ]);
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
+async function initSettings() {
   // topbar 설정 버튼
   els.settingsBtn?.addEventListener("click", openSettingsModal);
+  document
+    .getElementById("settings-load-retry")
+    ?.addEventListener("click", openSettingsModal);
   els.settingsModalClose?.addEventListener("click", closeSettingsModal);
   els.settingsModal?.addEventListener("click", (e) => {
     if (e.target === els.settingsModal) closeSettingsModal();
-  });
-
-  // 워크스페이스 셀렉터 토글
-  // v0.5.82 — 열 때마다 fresh 조회 후 렌더. 기존엔 부팅 시점
-  // _settingsCache로 미리 렌더한 목록을 토글만 해서, 삭제/추가가
-  // 어떤 경로로 일어났든 (설정 모달, setup wizard, 재시작 경로)
-  // 캐시가 낡으면 삭제된 워크스페이스가 유령처럼 남았음.
-  els.workspaceCurrent?.addEventListener("click", async () => {
-    const opening = els.workspaceList?.classList.contains("hidden");
-    if (opening) {
-      try {
-        _settingsCache = await window.spiralSettings.get();
-        renderWorkspaceSelector();
-      } catch {
-        // 조회 실패 — 기존 캐시로라도 표시
-      }
-    }
-    els.workspaceList?.classList.toggle("hidden");
   });
 
   // ESC로 모달 닫기
@@ -2554,48 +2699,17 @@ async function initSettings() {
 
   // 새 워크스페이스 모달
   initAddWorkspaceModal();
-}
 
-function renderWorkspaceSelector() {
-  if (!_settingsCache) return;
-  const active = _settingsCache.workspaces.find(
-    (w) => w.id === _settingsCache.activeWorkspaceId,
-  );
-  if (active && els.workspaceName) {
-    els.workspaceName.textContent = displayWorkspaceName(active);
+  // IPC 응답과 무관하게 위 상호작용부터 즉시 연결한다. 설정 조회가 느리거나
+  // 멈춰도 버튼은 열리며, 모달 안에서 제한 시간 내 재시도할 수 있다.
+  try {
+    _settingsCache = await getSettingsWithTimeout();
+  } catch (error) {
+    setStatus(
+      `워크스페이스 정보를 불러오지 못했어요: ${readableLoadError(error)}`,
+      "error",
+    );
   }
-  if (!els.workspaceList) return;
-  els.workspaceList.innerHTML = _settingsCache.workspaces
-    .map((w) => {
-      const isActive = w.id === _settingsCache.activeWorkspaceId;
-      return `
-        <button class="workspace-item ${isActive ? "active" : ""}" data-id="${escapeAttr(w.id)}">
-          <span class="workspace-item-icon">${isActive ? "✓" : "·"}</span>
-          <span class="workspace-item-name">${escapeHtml(displayWorkspaceName(w))}</span>
-        </button>
-      `;
-    })
-    .join("") +
-    `<button class="workspace-item add" id="workspace-list-add">＋ 새 워크스페이스</button>`;
-
-  els.workspaceList.querySelectorAll(".workspace-item[data-id]").forEach((b) => {
-    b.addEventListener("click", async () => {
-      const id = b.dataset.id;
-      if (id === _settingsCache.activeWorkspaceId) {
-        els.workspaceList.classList.add("hidden");
-        return;
-      }
-      const ok = window.confirm(
-        `워크스페이스를 전환하면 앱이 재시작됩니다. 진행할까요?`,
-      );
-      if (!ok) return;
-      await window.spiralSettings.switchWorkspace(id);
-    });
-  });
-  document.getElementById("workspace-list-add")?.addEventListener("click", () => {
-    els.workspaceList.classList.add("hidden");
-    openAddWorkspaceModal();
-  });
 }
 
 // v0.5.32+ — 업데이트 banner. v0.5.36: 실패 명시 + manual 진입점 항상 노출.
@@ -2712,10 +2826,29 @@ document.addEventListener("DOMContentLoaded", () => {
     ?.addEventListener("click", () => refreshUpdateBanner({ force: true }));
 });
 
-function openSettingsModal() {
-  if (!_settingsCache) return;
+async function openSettingsModal() {
   els.settingsModal.classList.remove("hidden");
   els.settingsModal.setAttribute("aria-hidden", "false");
+
+  if (!_settingsCache) {
+    setSettingsLoadState("loading");
+    const activeName = document.getElementById(
+      "settings-workspace-active-name",
+    );
+    if (activeName) activeName.textContent = "불러오는 중…";
+    try {
+      _settingsCache = await getSettingsWithTimeout();
+    } catch (error) {
+      // 동시에 시작된 초기 조회가 먼저 성공했으면 그 캐시로 계속 연다.
+      if (!_settingsCache) {
+        if (activeName) activeName.textContent = "불러오지 못했어요";
+        const reason = readableLoadError(error);
+        setSettingsLoadState("error", `설정을 불러오지 못했어요 · ${reason}`);
+        setStatus(`설정을 불러오지 못했어요: ${reason}`, "error");
+        return;
+      }
+    }
+  }
 
   // v0.5.32: 자동 업데이트 체크
   refreshUpdateBanner();
@@ -2774,10 +2907,12 @@ function openSettingsModal() {
   refreshLlmSectionFromCache();
 
   renderWorkspaceListInSettings();
+  setSettingsLoadState("ready");
 }
 
 function closeSettingsModal() {
   els.settingsModal?.classList.add("hidden");
+  els.settingsModal?.setAttribute("aria-hidden", "true");
 }
 
 async function saveApiKey() {
@@ -3092,6 +3227,17 @@ async function saveLlm() {
 function renderWorkspaceListInSettings() {
   const container = document.getElementById("settings-workspace-list");
   if (!container || !_settingsCache) return;
+  const activeWorkspace = _settingsCache.workspaces.find(
+    (w) => w.id === _settingsCache.activeWorkspaceId,
+  );
+  const activeName = document.getElementById(
+    "settings-workspace-active-name",
+  );
+  if (activeName) {
+    activeName.textContent = activeWorkspace
+      ? displayWorkspaceName(activeWorkspace)
+      : "선택되지 않음";
+  }
   container.innerHTML = _settingsCache.workspaces
     .map((w) => {
       const isActive = w.id === _settingsCache.activeWorkspaceId;
@@ -3186,7 +3332,6 @@ function openRemoveWorkspaceModal(ws) {
     cleanup();
     _settingsCache = await window.spiralSettings.get();
     renderWorkspaceListInSettings();
-    renderWorkspaceSelector();
     // 에러가 있었으면 알림
     if (res.errors && res.errors.length > 0) {
       alert(
@@ -3285,7 +3430,6 @@ async function submitAddWorkspace() {
   }
   _settingsCache = await window.spiralSettings.get();
   renderWorkspaceListInSettings();
-  renderWorkspaceSelector();
   closeAddWorkspaceModal();
   // 새 워크스페이스로 전환 제안
   const switchOk = window.confirm(
@@ -3595,7 +3739,6 @@ async function runCuratedInstall(repoNames, label) {
         if (wsRes?.ok) {
           _settingsCache = await window.spiralSettings.get();
           renderWorkspaceListInSettings?.();
-          renderWorkspaceSelector?.();
         }
       }
     }
@@ -5134,25 +5277,48 @@ function renderHistory() {
   state.history.forEach((note) => {
     const li = document.createElement("li");
     li.className = "history-item";
-    // v0.5.106 — 아이템 클릭 = 그때 나눈 대화를 메인창에 read-only로 다시보기.
-    // (Obsidian으로 가는 건 옆 📖 버튼으로 분리.)
-    li.setAttribute("role", "button");
-    li.tabIndex = 0;
-    li.title = "클릭하면 이 세션의 대화를 다시 봅니다";
     const obsidianBtn = note.obsidianUri
-      ? `<button class="history-obsidian-btn" data-obsidian="${escapeAttr(note.obsidianUri)}" title="Obsidian에서 노트 열기" aria-label="Obsidian에서 열기">📖</button>`
+      ? `<button type="button" class="history-detail-btn history-obsidian-btn" data-obsidian="${escapeAttr(note.obsidianUri)}">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+          </svg>
+          노트 열기
+        </button>`
       : "";
     li.innerHTML = `
-      <div class="row1">
-        <span class="depth-pill">d${note.depth}</span>
-        <span class="topic">${escapeHtml(note.topic)}</span>
-        ${obsidianBtn}
-      </div>
-      <div class="row2">
-        <span class="date">${escapeHtml(note.date)}</span>
-        ${note.summary ? `<span class="summary">${escapeHtml(note.summary)}</span>` : ""}
-      </div>
+      <details class="history-disclosure">
+        <summary>
+          <span class="depth-pill">d${note.depth}</span>
+          <span class="topic">${escapeHtml(note.topic)}</span>
+          <svg class="history-disclosure-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="9 18 15 12 9 6"></polyline>
+          </svg>
+        </summary>
+        <div class="history-details">
+          <div class="history-date">
+            <span>학습일</span>
+            <time datetime="${escapeAttr(note.date)}">${escapeHtml(note.date)}</time>
+          </div>
+          ${note.summary ? `<p class="history-summary">${escapeHtml(note.summary)}</p>` : ""}
+          <div class="history-detail-actions">
+            <button type="button" class="history-detail-btn primary history-conversation-btn">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"></path>
+              </svg>
+              대화 보기
+            </button>
+            ${obsidianBtn}
+          </div>
+        </div>
+      </details>
     `;
+    const conversationBtn = li.querySelector(".history-conversation-btn");
+    conversationBtn?.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      openPastConversation(note);
+    });
     const obtn = li.querySelector(".history-obsidian-btn");
     if (obtn) {
       obtn.addEventListener("click", (e) => {
@@ -5161,13 +5327,6 @@ function renderHistory() {
         window.spiralSetup?.openExternal?.(obtn.dataset.obsidian);
       });
     }
-    li.addEventListener("click", () => openPastConversation(note));
-    li.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        openPastConversation(note);
-      }
-    });
     els.historyList.appendChild(li);
   });
 }
