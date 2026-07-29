@@ -24,6 +24,8 @@ import {
   categoryIconHtml,
   repoIconHtml,
   groupIconHtml,
+  rolePresetIconHtml,
+  roadmapIconHtml,
   DEPTH_ICONS,
   CONTEXT_ICON_SVG,
 } from "./icons.js";
@@ -79,6 +81,17 @@ const LS_KEY = "spiral-buddy:lastRoadmapId";
 
 // 아이콘 데이터/헬퍼(svgIcon, categoryIconHtml, repoIconHtml, groupIconHtml,
 // DEPTH_ICONS, CONTEXT_ICON_SVG)는 ./icons.js 로 분리됨.
+
+const WELCOME_EMPTY_HTML = `
+  <div class="placeholder spiral-welcome">
+    <div class="welcome-mark" aria-hidden="true">
+      <svg viewBox="0 0 64 64">
+        <path d="M32 32 m0 0 a3 3 0 0 1 6 0 a6 6 0 0 1 -12 0 a9 9 0 0 1 18 0 a12 12 0 0 1 -24 0 a15 15 0 0 1 30 0 a18 18 0 0 1 -36 0 a21 21 0 0 1 42 0" />
+        <circle cx="32" cy="32" r="2" />
+      </svg>
+    </div>
+    <p class="welcome-principle">배움은 돌아올수록 깊어진다.</p>
+  </div>`;
 
 function displayWorkspaceName(workspace) {
   const rawName = String(workspace?.name ?? "");
@@ -1204,7 +1217,7 @@ function renderDomainNode(domName, domEntry, catMeta) {
         <div class="local-domain">
           <button class="domain-header" data-local-dom="${escapeAttr(domName)}" ${domStyle}>
             <span class="cat-caret">${domCaret}</span>
-            ${categoryIconHtml({ name: dom.name })}
+            ${categoryIconHtml(dom)}
             <span class="dom-name">${escapeHtml(dom.name)}</span>
             ${domDepthBadge}
             <span class="dom-count">${domCountText}</span>
@@ -1220,11 +1233,18 @@ function renderRoadmapSelector() {
   const activeProgress = active
     ? `${active.visitedChapters}/${active.chapterCount}`
     : "";
-  const activeSrc = active?.source === "curated" ? "📚" : "📁";
+  const activeIcon = active
+    ? roadmapIconHtml({
+        name: activeName,
+        category: active.category,
+        domain: active.domain,
+        source: active.source,
+      })
+    : "";
 
   els.roadmapCurrent.innerHTML = `
     <div class="roadmap-current-inner">
-      <span class="roadmap-name">${active ? activeSrc + " " : ""}${escapeHtml(activeName)}</span>
+      <span class="roadmap-name">${activeIcon}<span class="roadmap-name-text">${escapeHtml(activeName)}</span></span>
       ${active ? `<span class="roadmap-progress">${activeProgress}</span>` : ""}
     </div>
     <span class="caret">▼</span>
@@ -1346,20 +1366,6 @@ function renderRoadmapSelector() {
       state._searchExpandedCats = null;
       state._searchExpandedRepos = null;
     }
-    const totalCats = sortedDomains.reduce(
-      (sum, [, e]) => sum + e.cats.size,
-      0,
-    );
-    const totalRepos = sortedDomains.reduce(
-      (sum, [, e]) =>
-        sum +
-        Array.from(e.cats.values()).reduce((s2, m) => s2 + m.size, 0),
-      0,
-    );
-    parts.push(
-      `<div class="roadmap-group-title">${groupIconHtml("folder")}<span>내 학습 자료 · 도메인 ${sortedDomains.length} · 분류 ${totalCats} · 저장소 ${totalRepos} · 로드맵 ${local.length}</span></div>`,
-    );
-
     for (const [domName, domEntry] of sortedDomains) {
       parts.push(renderDomainNode(domName, domEntry, catMeta));
     }
@@ -1789,24 +1795,7 @@ async function _handleSessionInterruptionBody() {
     state.messages = [];
     enableSessionUi(false);
     updateTopbar();
-    els.messages.innerHTML = `
-      <div class="placeholder spiral-welcome">
-        <div class="welcome-mark" aria-hidden="true">
-          <svg viewBox="0 0 64 64">
-            <path d="M32 32 m0 0 a3 3 0 0 1 6 0 a6 6 0 0 1 -12 0 a9 9 0 0 1 18 0 a12 12 0 0 1 -24 0 a15 15 0 0 1 30 0 a18 18 0 0 1 -36 0 a21 21 0 0 1 42 0" />
-            <circle cx="32" cy="32" r="2" />
-          </svg>
-        </div>
-        <h2>오늘의 깊이를 선택하세요</h2>
-        <p>왼쪽 학습 순서에서 챕터를 고르거나<br />‘다음 나선’의 추천으로 이어가세요.</p>
-        <div class="welcome-steps" aria-label="학습 흐름">
-          <span><b>01</b> 읽기</span>
-          <i aria-hidden="true"></i>
-          <span><b>02</b> 대화</span>
-          <i aria-hidden="true"></i>
-          <span><b>03</b> 기록</span>
-        </div>
-      </div>`;
+    els.messages.innerHTML = WELCOME_EMPTY_HTML;
     // v0.5.105 — "저장하고 이동" 후에도 사이드바 "마지막"/depth 배지를 즉시 갱신.
     // (endSession 경로는 loadRoadmapData로 갱신하지만 이 경로는 roadmaps만 갱신해
     //  방금 저장한 챕터가 재시작 전까지 stale로 남았음.) session=null 이후라 방금
@@ -2205,6 +2194,12 @@ function renderChapters() {
   // 현재 세션과 마지막 학습을 분리한다. 세션이 없을 때 최근 챕터를
   // active로 취급하면 "진행 중"과 "마지막 완료"가 같은 상태로 보인다.
   const activeChapterId = state.session?.chapterId ?? null;
+  const totalChapterCount = state.chapters.length;
+  const completedChapterCount = state.chapters.filter(
+    (chapter) => (chapter.maxDepth ?? 0) > 0,
+  ).length;
+  const roadmapComplete =
+    totalChapterCount > 0 && completedChapterCount === totalChapterCount;
   // 검색어가 있으면 필터링 (v0.5.51)
   const q = (state.sidebarQuery ?? "").trim().toLowerCase();
   const filtered = q
@@ -2219,6 +2214,17 @@ function renderChapters() {
   filtered.forEach((ch, i) => {
     const li = document.createElement("li");
     li.className = "chapter-item";
+    const originalIdx = q ? state.chapters.indexOf(ch) : i;
+    const stepRatio =
+      totalChapterCount > 1 ? originalIdx / (totalChapterCount - 1) : 1;
+    const stepToneStrength = Math.round(46 + stepRatio * 54);
+    li.style.setProperty(
+      "--chapter-step-tone",
+      roadmapComplete
+        ? "var(--blue-success)"
+        : `color-mix(in srgb, var(--blue-cobalt) ${stepToneStrength}%, var(--blue-line-strong))`,
+    );
+    li.dataset.chapterStep = String(originalIdx + 1);
     const visited = (ch.maxDepth ?? 0) > 0;
     const isRecent = ch.id === recentChapterId;
     if (isRecent) li.classList.add("chapter-item--recent");
@@ -2230,6 +2236,12 @@ function renderChapters() {
         : "upcoming";
     li.classList.add(`chapter-item--${progressState}`);
     li.dataset.progressState = progressState;
+    if (roadmapComplete) {
+      li.classList.add("chapter-item--roadmap-complete");
+      if (originalIdx === totalChapterCount - 1) {
+        li.classList.add("chapter-item--journey-complete");
+      }
+    }
     if (isActive) {
       li.classList.add("chapter-item--active");
     }
@@ -2241,35 +2253,37 @@ function renderChapters() {
       : "";
     // visited 챕터에 노트 열기 + 삭제 트리거 (hover 시 등장)
     const openBtn = visited
-      ? `<button type="button" class="chapter-open-btn" data-chapter-open="${escapeAttr(ch.id)}" title="기존 노트 열기 (Obsidian)" aria-label="${escapeAttr(ch.title)} 기존 노트 열기">
+      ? `<button type="button" role="menuitem" class="chapter-open-btn" data-chapter-open="${escapeAttr(ch.id)}" title="기존 노트 열기 (Obsidian)" aria-label="${escapeAttr(ch.title)} 기존 노트 열기">
           <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
             <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
           </svg>
+          <span class="chapter-action-label">노트 열기</span>
         </button>`
       : "";
     const trashBtn = visited
-      ? `<button type="button" class="chapter-delete-btn" data-chapter-delete="${escapeAttr(ch.id)}" title="이 챕터의 노트 삭제" aria-label="${escapeAttr(ch.title)} 노트 삭제">
+      ? `<button type="button" role="menuitem" class="chapter-delete-btn" data-chapter-delete="${escapeAttr(ch.id)}" title="이 챕터의 노트 삭제" aria-label="${escapeAttr(ch.title)} 노트 삭제">
           <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <polyline points="3 6 5 6 21 6"></polyline>
             <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
             <path d="M10 11v6M14 11v6"></path>
             <path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"></path>
           </svg>
+          <span class="chapter-action-label">노트 삭제</span>
         </button>`
       : "";
     // v0.5.51 — 검색 중일 땐 원본 인덱스를 보여줘서 "전체 중 N번째" 알 수 있게
-    const originalIdx = q ? state.chapters.indexOf(ch) : i;
     const titleHtml = q ? _highlightMatch(ch.title, q) : escapeHtml(ch.title);
     // v0.5.70 — 챕터 미리보기 버튼. 캐시 있으면 채워진 외관, 없으면 비어있음.
     const aiReady = ch.aiCardReady === true;
     const previewLabel = aiReady
       ? `${ch.title} 미리보기 열기`
       : `${ch.title} 미리보기 준비하기`;
-    const aiBtn = `<button type="button" class="chapter-ai-btn${aiReady ? " ready" : ""}" data-chapter-ai="${escapeAttr(ch.id)}" title="${aiReady ? "챕터 미리보기 열기" : "챕터 미리보기 준비하기 (처음 한 번만)"}" aria-label="${escapeAttr(previewLabel)}">
+    const aiBtn = `<button type="button" role="menuitem" class="chapter-ai-btn${aiReady ? " ready" : ""}" data-chapter-ai="${escapeAttr(ch.id)}" title="${aiReady ? "챕터 미리보기 열기" : "챕터 미리보기 준비하기 (처음 한 번만)"}" aria-label="${escapeAttr(previewLabel)}">
         <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M12 12 m0 0 a1 1 0 0 1 2 0 a2 2 0 0 1 -4 0 a3 3 0 0 1 6 0 a4 4 0 0 1 -8 0 a5 5 0 0 1 10 0"></path>
         </svg>
+        <span class="chapter-action-label">미리보기</span>
       </button>`;
     li.innerHTML = `
       <button class="chapter-btn ${visited ? "visited" : ""}" data-id="${escapeAttr(ch.id)}"${isActive ? ' aria-current="step"' : ""}>
@@ -2278,14 +2292,14 @@ function renderChapters() {
         <span class="chapter-meta${!visited && !isRecent ? " empty" : ""}">${recentBadge}${badge}</span>
       </button>
       <span class="chapter-actions">
-        <button type="button" class="chapter-actions-toggle" aria-label="${escapeAttr(ch.title)} 챕터 작업 열기" aria-expanded="false">
+        <button type="button" class="chapter-actions-toggle" aria-label="${escapeAttr(ch.title)} 챕터 메뉴 열기" aria-expanded="false" aria-haspopup="menu" title="챕터 메뉴">
           <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true">
             <circle cx="5" cy="12" r="1.5"></circle>
             <circle cx="12" cy="12" r="1.5"></circle>
             <circle cx="19" cy="12" r="1.5"></circle>
           </svg>
         </button>
-        <span class="chapter-action-buttons">
+        <span class="chapter-action-buttons" role="menu" aria-label="${escapeAttr(ch.title)} 챕터 메뉴">
           ${aiBtn}
           ${openBtn}
           ${trashBtn}
@@ -3582,9 +3596,9 @@ function renderCuratedPresets() {
       ).length;
       const allDone = installedCount === repos.length;
       return `
-        <button class="curated-preset-card${p.recommended ? " recommended" : ""}${p.heavy ? " heavy" : ""}" data-preset="${escapeAttr(p.id)}" type="button" ${!_curatedState.parentDir || _curatedState.busy ? "disabled" : ""}>
+        <button class="curated-preset-card${p.recommended ? " recommended" : ""}${p.heavy ? " heavy" : ""}" data-preset="${escapeAttr(p.id)}" type="button" style="--preset-tone: ${escapeAttr(p.color ?? "#2459d3")}" ${!_curatedState.parentDir || _curatedState.busy ? "disabled" : ""}>
           <div class="curated-preset-head">
-            <span class="curated-preset-emoji">${escapeHtml(p.emoji ?? "")}</span>
+            ${rolePresetIconHtml(p)}
             <span class="curated-preset-name">${escapeHtml(p.name)}</span>
             ${p.recommended ? `<span class="curated-preset-tag">추천</span>` : ""}
             ${p.heavy ? `<span class="curated-preset-tag heavy">무거움</span>` : ""}
@@ -3621,10 +3635,10 @@ function renderCuratedDomains() {
           ? `+${missing}개 추가`
           : `받기 (${repos.length})`;
       return `
-        <div class="curated-domain-row ${isAllDone ? "all-done" : ""} ${isPartial ? "partial" : ""}">
+        <div class="curated-domain-row ${isAllDone ? "all-done" : ""} ${isPartial ? "partial" : ""}" style="--domain-tone: ${escapeAttr(d.color ?? "#2459d3")}">
           <div class="curated-domain-info">
             <div class="curated-domain-head">
-              <span class="curated-domain-emoji">${escapeHtml(d.emoji ?? "")}</span>
+              ${categoryIconHtml(d, "curated-domain-icon")}
               <span class="curated-domain-name">${escapeHtml(d.name)}</span>
               <span class="curated-domain-counts">${installedRepos.length}/${repos.length}</span>
             </div>
@@ -3676,7 +3690,7 @@ async function installCuratedDomain(domainId) {
     alert(`${d.name} — 이미 모두 받음 ✓`);
     return;
   }
-  const msg = `${d.emoji} ${d.name}\n${d.subtitle ?? ""}\n\n받을 레포: ${missing.length}개\n위치: ${_curatedState.parentDir}\n\n진행할까요?`;
+  const msg = `${d.name}\n${d.subtitle ?? ""}\n\n받을 레포: ${missing.length}개\n위치: ${_curatedState.parentDir}\n\n진행할까요?`;
   if (!confirm(msg)) return;
   await runCuratedInstall(missing, d.name);
 }
@@ -5663,6 +5677,7 @@ function setRefining(on) {
   state.refining = on;
   if (!els.refineBtn) return;
   els.refineBtn.classList.toggle("is-loading", on);
+  els.refineBtn.setAttribute("aria-busy", String(on));
   els.refineBtn.disabled = on || state.pending || !state.session;
   els.input.disabled = on || !state.session;
   if (on) setStatus("문장을 정리하는 중…");
@@ -6404,11 +6419,16 @@ function enableSessionUi(enabled) {
 
 function setPending(p) {
   state.pending = p;
+  els.sendBtn.setAttribute("aria-busy", String(p));
   els.sendBtn.disabled = p || !state.session;
   els.endBtn.disabled = p || !state.session;
   els.quizBtn.disabled = p || !state.session;
   if (els.pauseBtn) els.pauseBtn.disabled = p || !state.session;
   if (els.refineBtn) {
+    els.refineBtn.setAttribute(
+      "aria-busy",
+      String(p || state.refining === true),
+    );
     els.refineBtn.disabled = p || !state.session || state.refining === true;
   }
 }

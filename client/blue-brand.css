@@ -3213,17 +3213,17 @@ button .inline-spinner {
  * Its 24-second turn is deliberately calm but visible; OS reduced-motion stops it.
  */
 
-@keyframes blue-brand-idle-turn {
+@keyframes blue-brand-rewind {
   to {
-    transform: rotate(360deg);
+    transform: rotate(-360deg);
   }
 }
 
 body #sidebar .logo-spiral .spiral-rotate,
 body.motion-on #sidebar .logo-spiral .spiral-rotate {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: blue-brand-idle-turn 24s linear infinite !important;
+  transform-box: view-box;
+  transform-origin: 32px 32px;
+  animation: blue-brand-rewind 36s linear infinite !important;
 }
 
 /* Pause is cautionary; save/send and the active learning path stay cobalt. */
@@ -4397,4 +4397,545 @@ body:is(.light-mode, .dark-mode) .message.user .content:hover {
   .chapter-item:focus-within .chapter-btn {
     padding-right: 80px !important;
   }
+}
+
+/* -------------------------------------------------------------------------- */
+/* v0.6.7 — quieter entry, explicit actions and one shared icon language       */
+/* -------------------------------------------------------------------------- */
+
+/* The field itself is the search affordance; a repeated section title is noise. */
+
+.sidebar-search-section {
+  padding-top: 11px !important;
+}
+
+/* A single thought replaces the instructional cover and its three-step legend. */
+
+body:is(.light-mode, .dark-mode) .spiral-welcome {
+  display: grid;
+  width: min(430px, calc(100% - 28px));
+  min-height: 0;
+  justify-items: center;
+  gap: 18px;
+  margin: clamp(72px, 14vh, 150px) auto 28px;
+  padding: 24px 22px !important;
+  overflow: visible;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  text-align: center;
+}
+
+.spiral-welcome .welcome-mark {
+  width: 82px;
+  height: 82px;
+  margin: 0 !important;
+  padding: 10px;
+}
+
+.spiral-welcome .welcome-mark svg {
+  width: 60px;
+  height: 60px;
+  transform-box: view-box;
+  transform-origin: 32px 32px;
+  animation: blue-brand-rewind 36s linear infinite;
+}
+
+body.motion-on .welcome-mark path {
+  animation: none !important;
+}
+
+body:is(.light-mode, .dark-mode) .welcome-principle {
+  max-width: none;
+  margin: 0;
+  color: var(--blue-ink) !important;
+  font-family: var(--blue-font-editorial);
+  font-size: clamp(17px, 2.5vw, 21px);
+  font-weight: 620;
+  line-height: 1.45;
+  letter-spacing: -0.035em;
+}
+
+/* One menu trigger replaces three unexplained chapter glyphs. */
+
+.chapter-actions {
+  min-width: 28px;
+}
+
+.chapter-item:has(.chapter-actions.actions-open) {
+  z-index: 20;
+}
+
+.chapter-actions-toggle {
+  display: grid !important;
+}
+
+.chapter-action-buttons {
+  position: absolute;
+  z-index: 12;
+  top: 50%;
+  right: calc(100% + 6px);
+  display: none !important;
+  min-width: 126px;
+  gap: 2px;
+  padding: 5px;
+  background: var(--blue-paper);
+  border: 1px solid var(--blue-line-strong);
+  border-radius: 9px;
+  box-shadow: var(--blue-shadow-md);
+  transform: translateY(-50%);
+}
+
+.chapter-actions.actions-open .chapter-action-buttons {
+  display: grid !important;
+}
+
+.chapter-action-buttons
+  > :is(.chapter-ai-btn, .chapter-open-btn, .chapter-delete-btn) {
+  display: flex !important;
+  width: 100% !important;
+  height: auto !important;
+  min-height: 32px;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 7px 9px !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 6px;
+  color: var(--blue-ink-soft) !important;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.2;
+  opacity: 1 !important;
+  white-space: nowrap;
+}
+
+.chapter-action-buttons
+  > :is(.chapter-ai-btn, .chapter-open-btn, .chapter-delete-btn)
+  svg {
+  display: block;
+  width: 15px !important;
+  height: 15px !important;
+  flex: 0 0 15px;
+  opacity: 1;
+  visibility: visible;
+}
+
+.chapter-action-label {
+  display: inline;
+}
+
+.chapter-action-buttons > .chapter-ai-btn {
+  color: var(--blue-cobalt) !important;
+}
+
+.chapter-action-buttons > .chapter-open-btn {
+  color: var(--blue-success) !important;
+}
+
+.chapter-action-buttons > .chapter-delete-btn {
+  color: var(--blue-danger) !important;
+}
+
+.chapter-action-buttons
+  > :is(.chapter-ai-btn, .chapter-open-btn):hover,
+.chapter-action-buttons
+  > :is(.chapter-ai-btn, .chapter-open-btn):focus-visible {
+  background: var(--blue-cobalt-soft) !important;
+}
+
+.chapter-action-buttons > .chapter-delete-btn:hover,
+.chapter-action-buttons > .chapter-delete-btn:focus-visible {
+  background: var(--blue-danger-soft) !important;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .chapter-item:hover .chapter-btn,
+  .chapter-item:focus-within .chapter-btn {
+    padding-right: 38px !important;
+  }
+}
+
+/* Voice, refine and send each keep a distinct tone in every state. */
+
+body.light-mode .composer-btn-col .mic-btn {
+  --composer-tone: #087f8c;
+}
+
+body.dark-mode .composer-btn-col .mic-btn {
+  --composer-tone: #65cbd3;
+}
+
+body.light-mode .composer-btn-col .refine-btn {
+  --composer-tone: #7252c7;
+}
+
+body.dark-mode .composer-btn-col .refine-btn {
+  --composer-tone: #b4a0f3;
+}
+
+body:is(.light-mode, .dark-mode)
+  .composer-btn-col
+  :is(.mic-btn, .refine-btn) {
+  background: color-mix(
+    in srgb,
+    var(--composer-tone) 9%,
+    var(--blue-paper)
+  ) !important;
+  border-color: color-mix(
+    in srgb,
+    var(--composer-tone) 42%,
+    var(--blue-line)
+  ) !important;
+  color: var(--composer-tone) !important;
+  opacity: 1 !important;
+}
+
+body:is(.light-mode, .dark-mode)
+  .composer-btn-col
+  :is(.mic-btn, .refine-btn):hover:not(:disabled) {
+  background: color-mix(
+    in srgb,
+    var(--composer-tone) 16%,
+    var(--blue-paper)
+  ) !important;
+  border-color: var(--composer-tone) !important;
+  color: var(--composer-tone) !important;
+}
+
+body:is(.light-mode, .dark-mode)
+  .composer-btn-col
+  :is(.mic-btn, .refine-btn):disabled:not(.is-loading) {
+  background: color-mix(
+    in srgb,
+    var(--composer-tone) 6%,
+    var(--blue-paper-muted)
+  ) !important;
+  border-color: color-mix(
+    in srgb,
+    var(--composer-tone) 25%,
+    var(--blue-line)
+  ) !important;
+  color: color-mix(
+    in srgb,
+    var(--composer-tone) 58%,
+    var(--blue-ink-faint)
+  ) !important;
+  opacity: 1 !important;
+}
+
+body:is(.light-mode, .dark-mode)
+  .composer-btn-col
+  :is(.mic-btn.active, .refine-btn.is-loading) {
+  background: color-mix(
+    in srgb,
+    var(--composer-tone) 20%,
+    var(--blue-paper)
+  ) !important;
+  border-color: var(--composer-tone) !important;
+  color: var(--composer-tone) !important;
+  opacity: 1 !important;
+}
+
+body:is(.light-mode, .dark-mode) .composer-btn-col .refine-btn.is-loading,
+body:is(.light-mode, .dark-mode)
+  .composer-btn-col
+  .send-btn[aria-busy="true"] {
+  cursor: progress;
+}
+
+body:is(.light-mode, .dark-mode)
+  .composer-btn-col
+  .send-btn:disabled:not([aria-busy="true"]) {
+  background: color-mix(
+    in srgb,
+    var(--blue-cobalt) 8%,
+    var(--blue-paper-muted)
+  ) !important;
+  border: 1px solid
+    color-mix(
+      in srgb,
+      var(--blue-cobalt) 30%,
+      var(--blue-line)
+    ) !important;
+  color: color-mix(
+    in srgb,
+    var(--blue-cobalt) 62%,
+    var(--blue-ink-faint)
+  ) !important;
+  opacity: 1 !important;
+}
+
+body:is(.light-mode, .dark-mode)
+  .composer-btn-col
+  .send-btn[aria-busy="true"] {
+  background: color-mix(
+    in srgb,
+    var(--blue-cobalt) 18%,
+    var(--blue-paper)
+  ) !important;
+  border-color: var(--blue-cobalt) !important;
+  color: var(--blue-cobalt) !important;
+  opacity: 1 !important;
+}
+
+/* Settings, the roadmap selector and the sidebar now share the SVG registry. */
+
+.roadmap-name {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+}
+
+.roadmap-name-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.roadmap-source-icon,
+.curated-preset-icon,
+.curated-domain-icon {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+}
+
+.roadmap-source-icon,
+.roadmap-source-icon-svg {
+  width: 17px;
+  height: 17px;
+}
+
+.roadmap-source-icon {
+  color: var(--blue-cobalt);
+}
+
+.curated-preset-icon,
+.curated-preset-icon-svg {
+  width: 20px;
+  height: 20px;
+}
+
+.curated-preset-icon {
+  color: var(--preset-tone, var(--blue-cobalt));
+}
+
+.curated-domain-icon,
+.curated-domain-icon-svg {
+  width: 19px;
+  height: 19px;
+}
+
+.curated-domain-icon {
+  color: var(--domain-tone, var(--blue-cobalt));
+}
+
+.curated-preset-card {
+  border-left: 3px solid
+    color-mix(
+      in srgb,
+      var(--preset-tone, var(--blue-cobalt)) 72%,
+      var(--blue-line)
+    ) !important;
+}
+
+.curated-preset-card:disabled {
+  opacity: 0.78 !important;
+}
+
+.curated-domain-row {
+  border-left: 3px solid
+    color-mix(
+      in srgb,
+      var(--domain-tone, var(--blue-cobalt)) 70%,
+      var(--blue-line)
+    ) !important;
+}
+
+.curated-presets-header,
+.curated-domains-header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.curated-section-icon {
+  width: 16px;
+  height: 16px;
+  color: var(--blue-cobalt);
+}
+
+@media (max-width: 800px) {
+  body:is(.light-mode, .dark-mode) .spiral-welcome {
+    width: calc(100% - 20px);
+    min-height: 0;
+    margin-top: clamp(48px, 10vh, 90px);
+    padding: 20px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body #sidebar .logo-spiral .spiral-rotate,
+  body.motion-on #sidebar .logo-spiral .spiral-rotate,
+  .spiral-welcome .welcome-mark svg {
+    animation: none !important;
+    transform: none !important;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* v0.6.7 — visible progress, compact topic context and a flat activity footer */
+/* -------------------------------------------------------------------------- */
+
+/* A heading needs whitespace, not a decorative rule, to separate sections. */
+
+#sidebar h2::after,
+.roadmap-selector h2::after {
+  display: none !important;
+  content: none !important;
+}
+
+/* Completed steps gain saturation as the learner advances through the path. */
+
+.chapter-item--completed::before {
+  background: var(--chapter-step-tone, var(--blue-cobalt)) !important;
+  box-shadow: 0 0 8px
+    color-mix(
+      in srgb,
+      var(--chapter-step-tone, var(--blue-cobalt)) 18%,
+      transparent
+    ) !important;
+}
+
+body:is(.light-mode, .dark-mode)
+  .chapter-item--completed:not(.chapter-item--active)
+  .chapter-btn {
+  background: linear-gradient(
+    90deg,
+    color-mix(
+        in srgb,
+        var(--chapter-step-tone, var(--blue-cobalt)) 10%,
+        transparent
+      ),
+    transparent 76%
+  ) !important;
+}
+
+body:is(.light-mode, .dark-mode)
+  .chapter-item--completed:not(.chapter-item--active)
+  .chapter-btn
+  .num {
+  background: color-mix(
+    in srgb,
+    var(--chapter-step-tone, var(--blue-cobalt)) 14%,
+    var(--blue-paper)
+  ) !important;
+  border-color: var(--chapter-step-tone, var(--blue-cobalt)) !important;
+  color: var(--blue-cobalt-strong) !important;
+  box-shadow: 0 0 0 3px
+    color-mix(
+      in srgb,
+      var(--chapter-step-tone, var(--blue-cobalt)) 10%,
+      transparent
+    ) !important;
+}
+
+.chapter-item--roadmap-complete::before {
+  background: var(--blue-success) !important;
+}
+
+body:is(.light-mode, .dark-mode)
+  .chapter-item--roadmap-complete
+  .chapter-btn
+  .title {
+  color: var(--blue-success) !important;
+}
+
+body:is(.light-mode, .dark-mode)
+  .chapter-item--journey-complete
+  .chapter-btn
+  .num {
+  background: var(--blue-success) !important;
+  border-color: var(--blue-success) !important;
+  color: #ffffff !important;
+  box-shadow:
+    0 0 0 4px var(--blue-success-soft),
+    0 0 14px
+      color-mix(in srgb, var(--blue-success) 24%, transparent) !important;
+}
+
+/* Keep the depth badge attached to the chapter it describes. */
+
+#current-chapter {
+  justify-content: flex-start;
+}
+
+.topbar-chapter-title {
+  flex: 0 1 auto;
+}
+
+#current-chapter .depth {
+  margin-left: 0 !important;
+}
+
+/* The footer boundary is the control; do not draw a second box inside it. */
+
+body:is(.light-mode, .dark-mode) #sidebar > .trash-section {
+  padding: 0 !important;
+  border-top: 1px solid var(--blue-line) !important;
+  border-bottom: 0 !important;
+}
+
+body:is(.light-mode, .dark-mode)
+  #sidebar
+  > .trash-section
+  > .trash-open-btn {
+  min-height: 56px;
+  padding: 0 17px;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  color: var(--blue-ink-soft) !important;
+  box-shadow: none !important;
+}
+
+body:is(.light-mode, .dark-mode)
+  #sidebar
+  > .trash-section
+  > .trash-open-btn
+  + .trash-open-btn {
+  border-top: 1px solid var(--blue-line) !important;
+}
+
+body:is(.light-mode, .dark-mode)
+  #sidebar
+  > .trash-section
+  > .trash-open-btn:hover {
+  background: var(--blue-paper-muted) !important;
+  color: var(--blue-ink) !important;
+}
+
+#sidebar > .trash-section > .trash-open-btn:focus-visible {
+  outline: 2px solid var(--blue-cobalt) !important;
+  outline-offset: -3px !important;
+}
+
+#sidebar > .trash-section > .activity-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .chapter-item:hover .chapter-meta,
+  .chapter-item:focus-within .chapter-meta {
+    display: inline-flex;
+  }
+}
+
+body.dark-mode .chapter-item--journey-complete .chapter-btn .num {
+  color: var(--blue-canvas) !important;
 }

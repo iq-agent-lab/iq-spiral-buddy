@@ -27,6 +27,9 @@ import {
   categoryIconHtml,
   repoIconHtml,
   groupIconHtml,
+  resolveIconName,
+  rolePresetIconHtml,
+  roadmapIconHtml,
   DEPTH_ICONS,
   CONTEXT_ICON_SVG,
 } from "../client/icons.js";
@@ -605,6 +608,40 @@ describe("icons.groupIconHtml", () => {
   test("unknown group name falls back to folder", () => {
     const out = groupIconHtml("no-such-icon");
     assert.ok(out.includes('<path d="M3.5 6.5h6l1.8 2H20v8.5'));
+  });
+});
+
+describe("icons shared entity registry", () => {
+  test("Query roadmaps use the same search icon language as the sidebar", () => {
+    assert.equal(resolveIconName({ name: "Query" }, "roadmap"), "search");
+    assert.ok(
+      roadmapIconHtml({ name: "Query" }).includes(
+        '<circle cx="10.5" cy="10.5" r="6.5"',
+      ),
+    );
+  });
+
+  test("explicit icons take priority and curated roadmaps have a stable fallback", () => {
+    assert.equal(
+      resolveIconName({ name: "Query", icon: "leaf" }, "roadmap"),
+      "leaf",
+    );
+    assert.equal(
+      resolveIconName({ name: "Unknown", source: "curated" }, "roadmap"),
+      "database",
+    );
+  });
+
+  test("role presets render product icons instead of emoji", () => {
+    const mobile = rolePresetIconHtml({ id: "mobile" });
+    assert.match(mobile, /^<span class="curated-preset-icon"/);
+    assert.ok(mobile.includes('<rect x="6.5" y="2.5"'));
+  });
+
+  test("iOS resolves to the filled Apple silhouette", () => {
+    const ios = categoryIconHtml({ name: "iOS" });
+    assert.ok(ios.includes('fill="currentColor"'));
+    assert.ok(ios.includes("M19.3 15.9"));
   });
 });
 
