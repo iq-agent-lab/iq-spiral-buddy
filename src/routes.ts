@@ -71,6 +71,7 @@ import {
   submitVerificationAttempt,
   type VerificationAttemptInput,
 } from "./chapter-verification.js";
+import { registerConceptRoutes } from "./concept-routes.js";
 
 // GET /roadmaps 의 per-roadmap 보강 — 노트 진도(visited/maxDepth/depths/lastDate) +
 // 카테고리/도메인/계층(hierarchy) 부착. (GET /roadmaps 핸들러에서 분리.)
@@ -1787,6 +1788,12 @@ export function createApi(config: Config, deps: { client?: ClaudeClient } = {}) 
   // ─────────────────────────────────────────────────────
 
   registerSearchNotesRoutes(app, config);
+
+  // ─────────────────────────────────────────────────────
+  // 4-b. Workspace-scoped concept library + bounded local hybrid search
+  // ─────────────────────────────────────────────────────
+
+  registerConceptRoutes(app, config);
 
   // ─────────────────────────────────────────────────────
   // 5. Suggest / 5b. Lookup / 5b-2. Chapter context / 5c. Prompt refine

@@ -31,6 +31,108 @@ export function cleanUiLabel(value) {
     .trimStart();
 }
 
+/**
+ * 사이드바가 별도 순번을 표시하므로 로드맵 표시명에 포함된 정렬 접두사는 숨긴다.
+ * 저장 경로/id에는 적용하지 않는다. 명시 구분자가 있는 두 자리 순번과
+ * 0-padding+공백 순번만 다뤄 "12 Factor App", "1984-orwell", "Chrome"은 보존한다.
+ */
+export function stripRoadmapOrderPrefix(value) {
+  const source = String(value ?? "").trim();
+  const stripped = source
+    .replace(
+      /^\s*(?:(?:(?:chapter|챕터|ch)\s*\d+|0\d)(?:\s*[._:)\]—–·-]+\s*|\s+)|\d{2}\s*[._:)\]—–·-]+\s*)/i,
+      "",
+    )
+    .trim();
+  return stripped || source;
+}
+
+const GENERIC_CONCEPT_LABEL = /^(?:답변|설명|정의|개념|핵심|핵심\s*(?:요약|정리|내용|원리|동작\s*원리)|요약|정리|결론|(?:짧은\s*)?예시|참고|좋은\s*질문|정답|이름|명칭)$/iu;
+const QUESTION_LIKE_ENDING = /(?:[?？!！]|뭐(?:야|지|였지|인가요?)?|무엇(?:인가요?)?|어떤\s*(?:거|것)(?:야|지|인가요?)?|어떻게|알려\s*(?:줘|주세요)|설명(?:해\s*(?:줘|주세요))?|찾아\s*(?:줘|주세요)|기억\s*(?:나|나요)|(?:인|인\s*건|라는\s*건|하는\s*건|한\s*건|거|것)(?:가|지|야|인가요?)?)\s*$/iu;
+
+function limitConceptLabel(value, maxLength = 160) {
+  const chars = Array.from(String(value ?? "").trim());
+  if (chars.length <= maxLength) return chars.join("");
+  return `${chars.slice(0, maxLength - 1).join("").trimEnd()}…`;
+}
+
+function cleanConceptCandidate(value) {
+  const cleaned = String(value ?? "")
+    .replace(/\[([^\[\]]+)\]\([^)]+\)/gu, "$1")
+    .replace(/<[^>]*>/gu, "")
+    .replace(/[`*_~]/gu, "")
+    .replace(/^\s*(?:#{1,6}|[-–—:：])\s*/u, "")
+    .replace(/\s+/gu, " ")
+    .replace(/\s*(?:(?:이란|란)\s*(?:무엇인가요?|뭔가요?)?|(?:이란|란)[?？])\s*$/u, "")
+    .replace(/[\s:：;；,，。.!！?？]+$/u, "")
+    .trim();
+  if (!cleaned || Array.from(cleaned).length > 160) return "";
+  if (GENERIC_CONCEPT_LABEL.test(cleaned)) return "";
+  // 제목 전체가 문장인 경우를 개념명으로 오인하지 않는다.
+  if (/\s(?:입니다|이에요|예요|한다|합니다|했어요|해요)$/u.test(cleaned)) return "";
+  return cleaned;
+}
+
+function isShortKeywordQuery(value) {
+  const query = String(value ?? "").replace(/\s+/gu, " ").trim();
+  if (!query || Array.from(query).length > 80 || /[\r\n]/u.test(query)) {
+    return false;
+  }
+  if (QUESTION_LIKE_ENDING.test(query)) return false;
+  return query.split(" ").filter(Boolean).length <= 4;
+}
+
+function isNaturalLanguageQuery(value) {
+  const query = String(value ?? "").replace(/\s+/gu, " ").trim();
+  return Array.from(query).length > 80 || QUESTION_LIKE_ENDING.test(query);
+}
+
+function looksTechnical(value) {
+  // 초기 굵은 문구는 오탐을 막기 위해 영문/숫자/코드형 구두점이 있는
+  // 기술 용어만 허용한다. 순수 한글 용어는 명시적 이름 표기나 heading에서 찾는다.
+  return /[\p{Script=Latin}\p{Number}]/u.test(value) || /[-+/#()[\]_.]/u.test(value);
+}
+
+/**
+ * lookup 질문과 답변에서 보관할 개념명을 보수적으로 고른다.
+ *
+ * 짧은 키워드는 사용자가 붙인 이름을 존중한다. 자연어 질문이면 답변 초반의
+ * 의미 있는 첫 heading, `정식 이름/명칭은 **용어**`, 초기 기술용어 굵은 표기를
+ * 차례로 확인한다. `**핵심**` 같은 일반 강조는 저장 이름으로 채택하지 않는다.
+ * 확신할 수 없으면 원래 질문으로 돌아가며 서버 term 제한 안에서만 반환한다.
+ */
+export function inferConceptTerm(query, rawSource) {
+  const fallback = limitConceptLabel(String(query ?? "").replace(/\s+/gu, " "));
+  if (isShortKeywordQuery(fallback)) return fallback;
+
+  const source = String(rawSource ?? "").replace(/\r\n?/gu, "\n");
+  const openingLines = source
+    .split("\n")
+    .filter((line) => line.trim())
+    .slice(0, 12);
+  for (const line of openingLines) {
+    const heading = line.match(/^\s*#{1,3}\s+(.+)$/u);
+    const headingCandidate = cleanConceptCandidate(heading?.[1]);
+    if (headingCandidate) return headingCandidate;
+  }
+
+  const explicitName = source.slice(0, 700).match(
+    /(?:(?:정식|정확한|공식|기술적)\s*)?(?:이름|명칭)(?:은|는|이|가)?\s*(?:바로|정확히)?\s*(?:[:：=]\s*)?\*\*([^*\n]{1,180})\*\*/iu,
+  );
+  const explicitCandidate = cleanConceptCandidate(explicitName?.[1]);
+  if (explicitCandidate) return explicitCandidate;
+
+  if (isNaturalLanguageQuery(fallback)) {
+    const initial = source.slice(0, 700);
+    for (const match of initial.matchAll(/\*\*([^*\n]{1,180})\*\*/gu)) {
+      const boldCandidate = cleanConceptCandidate(match[1]);
+      if (boldCandidate && looksTechnical(boldCandidate)) return boldCandidate;
+    }
+  }
+
+  return fallback;
+}
+
 /** CSS 셀렉터/식별자 이스케이프 — CSS.escape 우선, 폴백 정규식. */
 export function cssEscape(s) {
   if (typeof CSS !== "undefined" && CSS.escape) return CSS.escape(s);
