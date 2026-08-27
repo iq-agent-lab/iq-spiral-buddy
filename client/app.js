@@ -3270,9 +3270,12 @@ function setUpdateDownloadProgress(progress = {}) {
   const hasKnownTotal = Number(progress?.total) > 0;
   const hasPct = Number.isFinite(numericPct) && hasKnownTotal;
   const pct = hasPct ? Math.max(0, Math.min(100, Math.round(numericPct))) : null;
+  const isPostDownload = ["verifying", "downloaded", "preparing", "installing"].includes(phase);
 
-  root.classList.remove("hidden", "indeterminate");
+  root.classList.remove("hidden", "indeterminate", "post-download");
   root.setAttribute("aria-hidden", "false");
+  root.setAttribute("aria-busy", isPostDownload ? "true" : "false");
+  if (isPostDownload) root.classList.add("post-download");
   if (phase === "error") {
     bar.style.width = "0%";
     meter.removeAttribute("aria-valuenow");
@@ -3289,6 +3292,7 @@ function setUpdateDownloadProgress(progress = {}) {
   let label = "업데이트를 받는 중…";
   if (phase === "verifying") label = "다운로드 확인 중…";
   if (phase === "downloaded") label = "다운로드 완료 · 설치 준비 중…";
+  if (phase === "preparing") label = "업데이트 적용 준비 중…";
   if (phase === "installing") label = "다운로드 완료 · 앱을 다시 여는 중…";
   if (phase === "error") label = "업데이트를 받지 못했어요";
 
@@ -3301,6 +3305,10 @@ function setUpdateDownloadProgress(progress = {}) {
     detail.textContent = formatUpdateBytes(progress?.received) || "연결 중…";
   } else if (phase === "verifying") {
     detail.textContent = "확인 중";
+  } else if (phase === "downloaded" || phase === "preparing") {
+    detail.textContent = "설치 준비 중";
+  } else if (phase === "installing") {
+    detail.textContent = "재시작 중";
   } else if (phase === "error") {
     detail.textContent = "실패";
   } else {
@@ -3316,8 +3324,9 @@ function resetUpdateDownloadProgress() {
   const bar = document.getElementById("update-progress-bar");
   const detail = document.getElementById("update-progress-detail");
   root?.classList.add("hidden");
-  root?.classList.remove("indeterminate");
+  root?.classList.remove("indeterminate", "post-download");
   root?.setAttribute("aria-hidden", "true");
+  root?.setAttribute("aria-busy", "false");
   meter?.removeAttribute("aria-valuenow");
   meter?.removeAttribute("aria-valuetext");
   if (bar) bar.style.width = "0%";
@@ -3334,16 +3343,22 @@ function renderActiveUpdateDownload({ banner, text, installBtn, recheckBtn }) {
   if (recheckBtn) recheckBtn.disabled = true;
   const label = setUpdateDownloadProgress(active.progress);
   text.textContent = `v${active.version} · ${label}`;
+  const phase = active.progress?.phase ?? "downloading";
   const pct = Number(active.progress?.pct);
   const hasPct =
+    phase === "downloading" &&
     active.progress?.pct != null &&
     Number.isFinite(pct) &&
-    (active.progress?.phase !== "downloading" || Number(active.progress?.total) > 0);
-  installBtn.textContent = active.progress?.phase === "installing"
-    ? "다시 여는 중…"
-    : hasPct
-      ? `${Math.max(0, Math.min(100, Math.round(pct)))}%`
-      : "받는 중…";
+    Number(active.progress?.total) > 0;
+  installBtn.textContent = phase === "installing"
+    ? "재시작 중…"
+    : phase === "verifying"
+      ? "확인 중…"
+      : phase === "downloaded" || phase === "preparing"
+        ? "설치 중…"
+        : hasPct
+          ? `${Math.max(0, Math.min(100, Math.round(pct)))}%`
+          : "받는 중…";
   return true;
 }
 

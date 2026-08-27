@@ -16,10 +16,10 @@
 // Helper 앱 4종(+executable+Info.plist)을 "Spiral Buddy Blue Helper*"로 rename해
 // CFBundleName과 일치시킨다. → dock에 Blue 표시 + 크래시 없음.
 //
-// 재서명하지 않는다(중요): 린커 서명은 Mach-O에 내장되어 파일명/Info.plist
-// 변경으로 깨지지 않고(이 앱은 Sealed Resources 없음), 재서명하면 sealed
-// resources가 생겨 macOS 업데이트 스크립트의 cp -R가 seal을 깨 오히려 크래시
-// 위험이 생긴다. productName/.app 파일명은 그대로라 자동 업데이트도 유지된다.
+// Helper 이름과 Info.plist를 바꾼 뒤 앱 전체를 ad-hoc 서명하고 즉시 검증한다.
+// electron-builder의 identity:"-"는 인증서 이름 "-"를 찾을 뿐 ad-hoc 서명을
+// 만들지 않아 실제 릴리즈가 unsigned였음. updater는 번들을 verbatim 복사하므로
+// sealed resources와 서명도 그대로 유지된다.
 
 const { execFileSync } = require("node:child_process");
 const fs = require("node:fs");
@@ -74,6 +74,18 @@ exports.default = async function afterPack(context) {
   }
 
   console.log(
-    `[after-pack] ${renamed} helper(s) renamed to "${bundleName} Helper*" (CFBundleName 일치, 재서명 없음)`,
+    `[after-pack] ${renamed} helper(s) renamed to "${bundleName} Helper*"`,
   );
+
+  execFileSync(
+    "/usr/bin/codesign",
+    ["--force", "--deep", "--sign", "-", appPath],
+    { stdio: "inherit" },
+  );
+  execFileSync(
+    "/usr/bin/codesign",
+    ["--verify", "--deep", "--strict", appPath],
+    { stdio: "inherit" },
+  );
+  console.log(`[after-pack] ad-hoc signature verified for "${bundleName}"`);
 };
